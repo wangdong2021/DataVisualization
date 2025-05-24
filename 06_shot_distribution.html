@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>交互式球员投篮图</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* bg-gray-100 */
+        }
+        #shotChartContainer {
+            width: 100%;
+            max-width: 600px; /* 控制图表最大宽度 */
+            height: auto; /* 高度自适应 */
+            margin: 1rem auto;
+            background-color: #fff; /* bg-white */
+            border-radius: 0.5rem; /* rounded-lg */
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); /* shadow-md */
+            padding: 1rem;
+        }
+        .shot {
+            transition: opacity 0.3s ease, r 0.3s ease; /* 添加过渡效果 */
+            cursor: pointer;
+        }
+        .shot.made {
+            fill: #22c55e; /* green-500 */
+            opacity: 0.7;
+        }
+        .shot.missed {
+            fill: #ef4444; /* red-500 */
+            opacity: 0.7;
+        }
+        .shot:hover {
+            opacity: 1;
+            stroke: black;
+            stroke-width: 1px;
+        }
+        /* 球场线条样式 */
+        .court-line {
+            stroke: #9ca3af; /* gray-400 */
+            stroke-width: 2;
+            fill: none;
+        }
+        .backboard {
+            stroke: #1f2937; /* gray-800 */
+            stroke-width: 3;
+            fill: none;
+        }
+        .hoop {
+            stroke: #f97316; /* orange-500 */
+            stroke-width: 2;
+            fill: none;
+        }
+        /* Tooltip 样式 */
+        #tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none; /* 让鼠标事件穿透 */
+            opacity: 0;
+            transition: opacity 0.2s;
+            white-space: nowrap; /* 防止换行 */
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="container mx-auto max-w-4xl">
+        <h1 class="text-2xl md:text-3xl font-bold text-center mb-4 text-gray-800">交互式球员投篮图</h1>
+
+        <div class="mb-4 p-4 bg-white rounded-lg shadow-md flex flex-wrap justify-center gap-4">
+            <div>
+                <label for="playerSelect" class="block text-sm font-medium text-gray-700 mb-1">选择球员:</label>
+                <select id="playerSelect" class="rounded-md border border-gray-300 py-2 px-3">
+                    <option value="斯蒂芬·库里">斯蒂芬·库里</option>
+                    <option value="勒布朗·詹姆斯">勒布朗·詹姆斯</option>
+                    </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">筛选:</label>
+                <div class="flex space-x-2">
+                    <button id="filterAll" class="bg-blue-500 hover:bg-blue-600 text-white text-sm py-1 px-3 rounded">全部</button>
+                    <button id="filterMade" class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm py-1 px-3 rounded">命中</button>
+                    <button id="filterMissed" class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm py-1 px-3 rounded">投失</button>
+                </div>
+            </div>
+             </div>
+
+        <div id="shotChartContainer">
+            <svg id="shotChartSvg" width="100%" height="100%" viewBox="0 0 500 470"></svg>
+        </div>
+
+        <div id="tooltip"></div>
+    </div>
+
+    <script>
+        // --- 模拟数据 ---
+        // NBA球场坐标系: 通常篮筐中心为(0,0), 单位是英尺.
+        // 但为了简化SVG绘制，我们使用一个自定义坐标系:
+        // - SVG画布大小 500x470
+        // - 篮筐中心大致在 (250, 52.5)
+        // - x 范围 0-500 (对应球场宽度 50英尺)
+        // - y 范围 0-470 (对应篮筐到底线约 47英尺)
+        // 更新: 函数参数使用真实球员名
+        function generateMockShots(count = 100, playerName = "斯蒂芬·库里") {
+            const shots = [];
+            // 稍微调整命中率模拟不同球员特点
+            const baseMakeRate = playerName === "斯蒂芬·库里" ? 0.48 : 0.45;
+            const threePointRate = playerName === "斯蒂芬·库里" ? 0.6 : 0.3; // 库里模拟投更多三分
+
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI;
+                // 库里模拟投篮距离更远
+                const maxDist = playerName === "斯蒂芬·库里" ? 35 : 30;
+                const distanceFromHoop = Math.random() * maxDist;
+                // 距离越远命中率越低 (简化模拟)
+                const makeProbability = baseMakeRate * (1 - (distanceFromHoop / (maxDist * 2)));
+                const isMade = Math.random() < makeProbability;
+
+                let x_rel = distanceFromHoop * Math.sin(angle);
+                let y_rel = distanceFromHoop * Math.cos(angle);
+
+                if (y_rel < -4) y_rel = -4;
+
+                const svgX = 250 + x_rel * 10;
+                const svgY = 52.5 + y_rel * 10;
+
+                if (svgX < 10 || svgX > 490 || svgY < 10 || svgY > 460) continue;
+
+                // 根据距离判断投篮类型 (简化)
+                let shotType = '中距离';
+                if (distanceFromHoop <= 5) {
+                    shotType = '篮下';
+                } else if (distanceFromHoop > 23.75 || (Math.abs(x_rel) > 22 && y_rel < 14)) { // 简化三分判断
+                     // 模拟球员倾向
+                     if (Math.random() < threePointRate) {
+                         shotType = '三分';
+                     }
+                }
+
+
+                shots.push({
+                    x: svgX,
+                    y: svgY,
+                    made: isMade,
+                    player: playerName, // 使用传入的球员名
+                    type: shotType,
+                    distance: distanceFromHoop.toFixed(1) + ' 英尺',
+                    date: `2023-11-${Math.floor(Math.random() * 30) + 1}`
+                });
+            }
+            return shots;
+        }
+
+        // 更新: 使用真实球员名生成数据
+        let mockDataCurry = generateMockShots(250, "斯蒂芬·库里");
+        let mockDataLeBron = generateMockShots(220, "勒布朗·詹姆斯");
+        // 更新: 默认显示库里数据
+        let currentData = mockDataCurry;
+
+        // --- D3 选择器 ---
+        const svg = d3.select("#shotChartSvg");
+        const tooltip = d3.select("#tooltip");
+        const playerSelect = d3.select("#playerSelect");
+        const filterAllBtn = d3.select("#filterAll");
+        const filterMadeBtn = d3.select("#filterMade");
+        const filterMissedBtn = d3.select("#filterMissed");
+
+        // --- 绘制球场 ---
+        function drawCourt() {
+            // (绘制球场代码保持不变)
+             // 清除旧的球场元素
+            svg.selectAll('.court-element').remove();
+
+            const courtGroup = svg.append('g').attr('class', 'court-element');
+
+            // 篮板 (Backboard) - 宽度6英尺 (60 SVG单位)
+            courtGroup.append("line")
+                .attr("x1", 220).attr("y1", 40)
+                .attr("x2", 280).attr("y2", 40)
+                .attr("class", "backboard");
+
+            // 篮筐 (Hoop) - 直径1.5英尺 (半径7.5 SVG单位)
+            courtGroup.append("circle")
+                .attr("cx", 250).attr("cy", 52.5).attr("r", 7.5)
+                .attr("class", "hoop");
+
+            // 罚球圈 (Free Throw Circle) - 半径6英尺 (60 SVG单位)
+            courtGroup.append("path") // 上半圆
+                .attr("d", d3.arc()({ innerRadius: 60, outerRadius: 60, startAngle: Math.PI, endAngle: 2 * Math.PI }))
+                .attr("transform", "translate(250, 190)")
+                .attr("class", "court-line");
+             courtGroup.append("path") // 虚线下半圆
+                .attr("d", d3.arc()({ innerRadius: 60, outerRadius: 60, startAngle: 0, endAngle: Math.PI }))
+                .attr("transform", "translate(250, 190)")
+                .attr("class", "court-line")
+                .style("stroke-dasharray", "5,5");
+
+            // 限制区/油漆区 (Lane) - 宽16英尺 (160), 长19英尺 (190)
+            courtGroup.append("rect")
+                .attr("x", 250 - 80).attr("y", 40)
+                .attr("width", 160).attr("height", 150)
+                .attr("class", "court-line");
+
+             // 罚球线 (Free Throw Line)
+             courtGroup.append("line")
+                .attr("x1", 250 - 80).attr("y1", 190)
+                .attr("x2", 250 + 80).attr("y2", 190)
+                .attr("class", "court-line");
+
+            // 三分线 (Three Point Line)
+             courtGroup.append("line") // 左底角
+                 .attr("x1", 30).attr("y1", 40).attr("x2", 30).attr("y2", 140)
+                 .attr("class", "court-line");
+             courtGroup.append("line") // 右底角
+                 .attr("x1", 470).attr("y1", 40).attr("x2", 470).attr("y2", 140)
+                 .attr("class", "court-line");
+            // 三分线弧顶
+            const threePointRadius = 237.5;
+            const threePointAngle = Math.acos((140 - 52.5) / threePointRadius);
+            courtGroup.append("path")
+                .attr("d", d3.arc()({ innerRadius: threePointRadius, outerRadius: threePointRadius, startAngle: Math.PI - threePointAngle, endAngle: Math.PI + threePointAngle }))
+                .attr("transform", "translate(250, 52.5)")
+                .attr("class", "court-line");
+
+             // 中线附近半圆 (简化)
+             courtGroup.append("circle")
+                 .attr("cx", 250).attr("cy", 470).attr("r", 60)
+                 .attr("class", "court-line")
+                 .attr("clip-path", "url(#court-clip)");
+
+             // 定义裁剪区域
+             svg.append("defs").append("clipPath")
+                .attr("id", "court-clip")
+                .append("rect")
+                .attr("x", 0).attr("y", 0).attr("width", 500).attr("height", 470);
+        }
+
+        // --- 绘制投篮点 ---
+        function drawShots(data, filter = 'all') {
+            // (筛选数据代码保持不变)
+             let filteredData = data;
+            if (filter === 'made') {
+                filteredData = data.filter(d => d.made);
+            } else if (filter === 'missed') {
+                filteredData = data.filter(d => !d.made);
+            }
+
+            // (数据绑定和 Enter/Update/Exit 逻辑保持不变)
+            const shots = svg.selectAll(".shot")
+                .data(filteredData, d => `${d.player}-${d.date}-${d.x}-${d.y}`);
+
+            shots.enter()
+                .append("circle")
+                .attr("class", d => `shot ${d.made ? 'made' : 'missed'}`)
+                .attr("cx", d => d.x)
+                .attr("cy", d => d.y)
+                .attr("r", 0).style("opacity", 0)
+                .on("mouseover", (event, d) => {
+                    tooltip.transition().duration(200).style("opacity", .9);
+                    // 更新: Tooltip 显示球员名
+                    tooltip.html(`
+                        球员: ${d.player}<br>
+                        结果: ${d.made ? '命中' : '投失'}<br>
+                        类型: ${d.type}<br>
+                        距离: ${d.distance}<br>
+                        日期: ${d.date}
+                    `);
+                    const [svgX, svgY] = d3.pointer(event, svg.node());
+                    const svgRect = svg.node().getBoundingClientRect();
+                    tooltip
+                        .style("left", (svgRect.left + window.scrollX + svgX + 15) + "px")
+                        .style("top", (svgRect.top + window.scrollY + svgY - 30) + "px");
+                    d3.select(event.currentTarget).attr("r", 6).style("opacity", 1);
+                })
+                .on("mouseout", (event, d) => {
+                    tooltip.transition().duration(500).style("opacity", 0);
+                    d3.select(event.currentTarget).attr("r", 4).style("opacity", 0.7);
+                })
+                .transition().duration(500).attr("r", 4).style("opacity", 0.7);
+
+            shots
+                .attr("class", d => `shot ${d.made ? 'made' : 'missed'}`)
+                .attr("cx", d => d.x)
+                .attr("cy", d => d.y);
+
+            shots.exit()
+                .transition().duration(500).attr("r", 0).style("opacity", 0)
+                .remove();
+        }
+
+         // --- 更新按钮激活状态 ---
+         function updateFilterButtons(activeButtonId) {
+             // (代码保持不变)
+             [filterAllBtn, filterMadeBtn, filterMissedBtn].forEach(btn => {
+                if (btn.attr('id') === activeButtonId) {
+                    btn.classed('bg-blue-500 text-white', true)
+                       .classed('bg-gray-200 text-gray-700 hover:bg-gray-300', false);
+                } else {
+                    btn.classed('bg-blue-500 text-white', false)
+                       .classed('bg-gray-200 text-gray-700 hover:bg-gray-300', true);
+                }
+            });
+         }
+
+
+        // --- 事件监听 ---
+        playerSelect.on("change", function() {
+            const selectedPlayer = d3.select(this).property("value");
+            // 更新: 根据真实球员名切换数据
+            currentData = (selectedPlayer === '斯蒂芬·库里') ? mockDataCurry : mockDataLeBron;
+            drawShots(currentData, currentFilter);
+        });
+
+        let currentFilter = 'all';
+
+        filterAllBtn.on("click", () => {
+            currentFilter = 'all';
+            updateFilterButtons('filterAll');
+            drawShots(currentData, currentFilter);
+        });
+
+        filterMadeBtn.on("click", () => {
+            currentFilter = 'made';
+             updateFilterButtons('filterMade');
+            drawShots(currentData, currentFilter);
+        });
+
+        filterMissedBtn.on("click", () => {
+            currentFilter = 'missed';
+             updateFilterButtons('filterMissed');
+            drawShots(currentData, currentFilter);
+        });
+
+
+        // --- 初始化 ---
+        drawCourt();
+        updateFilterButtons('filterAll');
+        // 更新: 初始绘制库里数据
+        drawShots(currentData, currentFilter);
+
+    </script>
+
+</body>
+</html>

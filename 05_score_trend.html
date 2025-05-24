@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>历史得分与效率趋势</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/1.4.0/chartjs-plugin-annotation.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        #trendsChartContainer {
+            width: 95%;
+            max-width: 1000px; /* 增加宽度以容纳更多年份 */
+            height: 550px;
+            margin: 1rem auto;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4 md:p-8 flex flex-col items-center min-h-screen">
+
+    <div class="container mx-auto max-w-6xl bg-white p-6 rounded-lg shadow-md w-full">
+        <h1 class="text-2xl md:text-3xl font-bold text-center mb-6 text-gray-800">NBA 历史得分与效率趋势 (模拟数据)</h1>
+
+        <div id="trendsChartContainer">
+            <canvas id="trendsChart"></canvas>
+        </div>
+
+         <div id="legendContainer" class="mt-4 text-center text-sm text-gray-600 flex flex-wrap justify-center gap-x-4 gap-y-1">
+             <span class="inline-flex items-center"><span class="inline-block w-3 h-3 bg-blue-500 mr-1"></span>联盟平均 PPG</span>
+             <span class="inline-flex items-center"><span class="inline-block w-3 h-3 bg-red-500 mr-1"></span>联盟平均 TS%</span>
+        </div>
+
+        <div id="messageBox" class="mt-4 text-center text-gray-500 font-medium text-xs">
+             提示：数据为高度简化和虚构，仅用于演示历史趋势可视化。TS% = 得分 / (2 * (FGA + 0.44 * FTA))。
+         </div>
+    </div>
+
+    <script>
+        // --- 模拟数据 ---
+        // 生成模拟赛季标签 (1950-51 to 2022-23)
+        const startYear = 1950;
+        const endYear = 2023;
+        const seasons = Array.from({ length: endYear - startYear }, (_, i) => {
+            const year = startYear + i;
+            return `${year}-${(year + 1).toString().slice(-2)}`;
+        });
+
+        // 生成模拟 PPG 数据 (大致趋势)
+        const ppgData = seasons.map((_, i) => {
+            const year = startYear + i;
+            let basePpg = 85;
+            // 50s-60s: 上升期
+            if (year < 1970) basePpg += (year - 1950) * 1.5;
+            // 70s: 平台期/略降
+            else if (year < 1980) basePpg = 105 + Math.random() * 5 - 2.5;
+            // 80s-90s: 缓慢上升后略降 (防守时代)
+            else if (year < 2000) basePpg = 100 + (year - 1980) * 0.3 - Math.max(0, (year - 1993)) * 0.5 ;
+             // 2000s-至今: 显著上升 (小球时代)
+            else basePpg = 95 + (year - 2000) * 0.8;
+             // 增加随机波动
+            return Math.max(80, Math.min(118, basePpg + Math.random() * 6 - 3)); // 限制在合理范围
+        });
+
+        // 生成模拟 TS% 数据 (大致趋势)
+        const tsData = seasons.map((_, i) => {
+            const year = startYear + i;
+            let baseTs = 0.450;
+             // 早期效率较低
+            if (year < 1965) baseTs = 0.430 + (year - 1950) * 0.002;
+            // 缓慢提升
+            else if (year < 1979) baseTs = 0.460 + (year - 1965) * 0.0015;
+            // 三分线引入后加速提升
+            else if (year < 2000) baseTs = 0.500 + (year - 1979) * 0.002;
+            // 近代效率进一步提升
+            else baseTs = 0.530 + (year - 2000) * 0.0018;
+            // 增加随机波动
+             return Math.max(0.420, Math.min(0.610, baseTs + Math.random() * 0.01 - 0.005)); // 限制范围
+        });
+
+        // --- DOM Elements ---
+        const trendsChartCtx = document.getElementById('trendsChart').getContext('2d');
+
+        // --- Chart.js Instance ---
+        let trendsChart = null;
+
+        // --- Chart Configuration ---
+        const chartData = {
+            labels: seasons,
+            datasets: [
+                {
+                    label: '联盟平均 PPG',
+                    data: ppgData,
+                    borderColor: 'rgb(59, 130, 246)', // blue-500
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    yAxisID: 'yPPG', // 关联到左边的 Y 轴
+                    tension: 0.1,
+                    pointRadius: 1, // 减少点的大小，使线条更突出
+                    pointHoverRadius: 3
+                },
+                {
+                    label: '联盟平均 TS%',
+                    data: tsData,
+                    borderColor: 'rgb(239, 68, 68)', // red-500
+                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                    yAxisID: 'yTS', // 关联到右边的 Y 轴
+                    tension: 0.1,
+                    pointRadius: 1,
+                    pointHoverRadius: 3
+                }
+            ]
+        };
+
+        const chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false // 使用自定义 HTML 图例
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    callbacks: {
+                         title: function(tooltipItems) {
+                            return `赛季: ${tooltipItems[0].label}`;
+                        },
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed.y !== null) {
+                                if (context.dataset.yAxisID === 'yTS') {
+                                    // 格式化 TS% 为百分比形式
+                                    label += (context.parsed.y * 100).toFixed(1) + '%';
+                                } else {
+                                    label += context.parsed.y.toFixed(1); // PPG 保留一位小数
+                                }
+                            }
+                            return label;
+                        }
+                    }
+                },
+                // --- Annotation Plugin Configuration ---
+                // 插件已全局加载，配置直接放在 plugins.annotation 下即可
+                annotation: {
+                    annotations: {
+                        threePointLine: {
+                            type: 'line',
+                            // 1979-80 season corresponds to index 29 (1979 - 1950)
+                            xMin: seasons.indexOf('1979-80'),
+                            xMax: seasons.indexOf('1979-80'),
+                            borderColor: 'rgba(0, 0, 0, 0.6)',
+                            borderWidth: 1.5,
+                            borderDash: [6, 6], // 虚线
+                            label: {
+                                content: '三分线引入 (1979)',
+                                enabled: true,
+                                position: 'start', // 标签位置
+                                yAdjust: -15, // 向上调整标签位置避免遮挡
+                                backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                                color: 'black',
+                                font: { size: 10 }
+                            }
+                        },
+                        // 可以添加更多标注，例如 Hand-checking 规则调整 (大约 2004-05)
+                        handChecking: {
+                             type: 'line',
+                             xMin: seasons.indexOf('2004-05'),
+                             xMax: seasons.indexOf('2004-05'),
+                             borderColor: 'rgba(0, 0, 0, 0.6)',
+                             borderWidth: 1.5,
+                             borderDash: [6, 6],
+                             label: {
+                                 content: 'Hand-checking 规则调整 (2004)',
+                                 enabled: true,
+                                 position: 'end',
+                                 yAdjust: 15, // 向下调整
+                                 backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                                 color: 'black',
+                                 font: { size: 10 }
+                             }
+                         }
+                         // 还可以添加其他标注，如24秒进攻时间、防守三秒等
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: '赛季'
+                    },
+                    ticks: {
+                         // 减少 X 轴标签数量，避免拥挤
+                         callback: function(value, index, values) {
+                             const label = this.getLabelForValue(value);
+                             // 每 5 年显示一个标签
+                             const year = parseInt(label.substring(0, 4));
+                             return (year % 5 === 0) ? label : null;
+                         },
+                         autoSkip: false, // 禁用自动跳过，手动控制
+                         maxRotation: 70, // 允许标签旋转
+                         minRotation: 45
+                    }
+                },
+                // --- 定义两个 Y 轴 ---
+                yPPG: { // 左 Y 轴 (PPG)
+                    type: 'linear',
+                    position: 'left',
+                    title: {
+                        display: true,
+                        text: '联盟平均 PPG'
+                    },
+                    // 可以根据数据范围调整 min/max
+                    // min: 80,
+                    // max: 120
+                },
+                yTS: { // 右 Y 轴 (TS%)
+                    type: 'linear',
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: '联盟平均 TS%'
+                    },
+                    ticks: {
+                        // 格式化为百分比
+                        callback: function(value) {
+                            return (value * 100).toFixed(0) + '%';
+                        }
+                    },
+                    // 根据数据范围调整 min/max
+                     min: 0.40, // 40%
+                     max: 0.65  // 65%
+                }
+            },
+            interaction: {
+                mode: 'index', // 优化交互模式
+                intersect: false,
+                axis: 'x'
+            }
+        };
+
+        // --- Create Chart ---
+        trendsChart = new Chart(trendsChartCtx, {
+            type: 'line',
+            data: chartData,
+            options: chartOptions
+            // **修正**: 移除此处的 plugins 数组，因为插件已全局加载
+            // plugins: [ChartAnnotation] // <--- 移除或注释掉这一行
+        });
+
+    </script>
+
+</body>
+</html>

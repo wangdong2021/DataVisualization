@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>球员职业生涯轨迹对比</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+     <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-annotation/1.4.0/chartjs-plugin-annotation.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        #trajectoryChartContainer {
+            width: 95%;
+            max-width: 900px; /* 增加最大宽度以容纳更多数据点 */
+            height: 550px; /* 增加高度 */
+            margin: 1rem auto;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4 md:p-8 flex flex-col items-center min-h-screen">
+
+    <div class="container mx-auto max-w-6xl bg-white p-6 rounded-lg shadow-md w-full">
+        <h1 class="text-2xl md:text-3xl font-bold text-center mb-6 text-gray-800">传奇球员职业生涯得分轨迹对比 (模拟数据)</h1>
+
+        <div id="trajectoryChartContainer">
+            <canvas id="trajectoryChart"></canvas>
+        </div>
+
+        <div id="legendContainer" class="mt-4 text-center text-sm text-gray-600">
+            图例说明：<br>
+            <span class="inline-block w-3 h-3 bg-red-500 mr-1 rounded-full"></span> 迈克尔·乔丹
+            <span class="inline-block w-3 h-3 bg-blue-500 mr-1 ml-3 rounded-full"></span> 勒布朗·詹姆斯
+            <span class="inline-block w-3 h-3 bg-green-500 mr-1 ml-3 rounded-full"></span> 卡里姆·阿卜杜尔-贾巴尔 <br>
+            <span class="font-bold text-yellow-500">*</span> 可能代表 MVP 赛季 (模拟)
+            <span class="font-bold text-purple-600 ml-2">🏆</span> 可能代表总冠军赛季 (模拟)
+        </div>
+
+        <div id="messageBox" class="mt-4 text-center text-gray-500 font-medium text-xs">
+             提示：数据为模拟或简化数据，仅用于可视化演示。X轴代表职业生涯第 N 个赛季。
+         </div>
+    </div>
+
+    <script>
+        // --- 模拟数据 ---
+        // 结构: { name: string, color: string, ppg: number[], keySeasons: { yearIndex: number, type: 'MVP' | 'Champ' }[] }
+        // ppg 数组的索引对应职业生涯赛季 (0 = 第1赛季, 1 = 第2赛季, ...)
+        const playersData = [
+            {
+                name: '迈克尔·乔丹',
+                color: 'rgb(239, 68, 68)', // red-500
+                // 简化 PPG 数据 (仅常规赛, 忽略中间退役)
+                ppg: [28.2, 22.7, 37.1, 35.0, 32.5, 33.6, 31.5, 30.1, 32.6, 26.9, 30.4, 29.6, 28.7, 22.9, 20.0],
+                keySeasons: [
+                    { yearIndex: 2, type: 'MVP' }, // 87-88 MVP
+                    { yearIndex: 6, type: 'Champ' }, // 90-91 Champ & MVP
+                    { yearIndex: 7, type: 'Champ' }, // 91-92 Champ & MVP
+                    { yearIndex: 8, type: 'Champ' }, // 92-93 Champ
+                    { yearIndex: 10, type: 'Champ' }, // 95-96 Champ & MVP
+                    { yearIndex: 11, type: 'Champ' }, // 96-97 Champ
+                    { yearIndex: 12, type: 'Champ' }, // 97-98 Champ & MVP
+                ]
+            },
+            {
+                name: '勒布朗·詹姆斯',
+                color: 'rgb(59, 130, 246)', // blue-500
+                // 简化 PPG 数据 (仅常规赛, 截至模拟数据点)
+                ppg: [20.9, 27.2, 31.4, 27.3, 30.0, 28.4, 29.7, 26.7, 27.1, 26.8, 27.1, 25.3, 25.3, 26.4, 27.5, 27.4, 25.3, 25.0, 30.3, 28.9, 27.0], // 模拟到第21赛季
+                 keySeasons: [
+                    { yearIndex: 5, type: 'MVP' },  // 08-09 MVP
+                    { yearIndex: 6, type: 'MVP' },  // 09-10 MVP
+                    { yearIndex: 8, type: 'Champ' }, // 11-12 Champ & MVP
+                    { yearIndex: 9, type: 'Champ' }, // 12-13 Champ & MVP
+                    { yearIndex: 12, type: 'Champ' },// 15-16 Champ
+                    { yearIndex: 14, type: 'MVP' }, // 17-18 (未获MVP但表现极佳, 模拟标注)
+                    { yearIndex: 16, type: 'Champ' },// 19-20 Champ
+                ]
+            },
+            {
+                name: '卡里姆·阿卜杜尔-贾巴尔',
+                color: 'rgb(34, 197, 94)', // green-500
+                // 简化 PPG 数据 (仅常规赛)
+                ppg: [28.8, 31.7, 34.8, 30.2, 27.0, 30.0, 27.7, 26.2, 25.8, 23.8, 24.8, 26.2, 23.9, 21.8, 21.5, 22.0, 23.4, 17.5, 14.6, 10.1],
+                 keySeasons: [
+                    { yearIndex: 1, type: 'MVP' },  // 70-71 Champ & MVP
+                    { yearIndex: 2, type: 'MVP' },  // 71-72 MVP
+                    { yearIndex: 4, type: 'MVP' },  // 73-74 MVP
+                    { yearIndex: 6, type: 'MVP' },  // 75-76 MVP
+                    { yearIndex: 7, type: 'MVP' },  // 76-77 MVP
+                    { yearIndex: 10, type: 'Champ'}, // 79-80 Champ & MVP
+                    { yearIndex: 12, type: 'Champ'}, // 81-82 Champ
+                    { yearIndex: 15, type: 'Champ'}, // 84-85 Champ
+                    { yearIndex: 17, type: 'Champ'}, // 86-87 Champ
+                    { yearIndex: 18, type: 'Champ'}, // 87-88 Champ
+                ]
+            }
+            // 可以添加更多球员数据...
+        ];
+
+        // --- Chart.js 配置 ---
+        const trajectoryChartCtx = document.getElementById('trajectoryChart').getContext('2d');
+        let trajectoryChart = null;
+
+        // 准备 Chart.js 数据集
+        const datasets = playersData.map(player => {
+            return {
+                label: player.name,
+                data: player.ppg,
+                borderColor: player.color,
+                backgroundColor: player.color, // 用于点的背景色
+                fill: false,
+                tension: 0.1, // 轻微曲线
+                pointRadius: (context) => { // 根据是否是关键赛季调整点的大小
+                    const keySeasonInfo = player.keySeasons.find(ks => ks.yearIndex === context.dataIndex);
+                    return keySeasonInfo ? 6 : 3; // 关键赛季点更大
+                },
+                pointHoverRadius: (context) => {
+                     const keySeasonInfo = player.keySeasons.find(ks => ks.yearIndex === context.dataIndex);
+                    return keySeasonInfo ? 8 : 5;
+                },
+                 pointStyle: (context) => { // 根据关键赛季类型调整点的样式 (可选)
+                    const keySeasonInfo = player.keySeasons.find(ks => ks.yearIndex === context.dataIndex);
+                     if (keySeasonInfo?.type === 'MVP') return 'star'; // MVP 用星形
+                     if (keySeasonInfo?.type === 'Champ') return 'triangle'; // 冠军用三角形
+                    return 'circle'; // 默认圆形
+                 }
+            };
+        });
+
+        // 计算最长生涯的赛季数作为 X 轴标签
+        const maxSeasons = Math.max(...playersData.map(p => p.ppg.length));
+        const labels = Array.from({ length: maxSeasons }, (_, i) => `第 ${i + 1} 赛季`);
+
+        // Chart.js 选项
+        const chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    title: {
+                        display: true,
+                        text: '职业生涯赛季'
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    title: {
+                        display: true,
+                        text: '场均得分 (PPG)'
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false // 使用自定义图例
+                    // position: 'top',
+                },
+                tooltip: {
+                    mode: 'index', // 在同一索引处显示所有数据集的工具提示
+                    intersect: false, // 鼠标悬停在轴上时触发
+                    callbacks: {
+                        title: function(tooltipItems) {
+                            // 显示赛季序号作为标题
+                            return labels[tooltipItems[0].dataIndex];
+                        },
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed.y !== null) {
+                                label += context.parsed.y.toFixed(1) + ' PPG'; // 保留一位小数
+                            }
+                             // 在工具提示中添加关键赛季信息
+                            const player = playersData.find(p => p.name === context.dataset.label);
+                            const keySeasonInfo = player?.keySeasons.find(ks => ks.yearIndex === context.dataIndex);
+                            if (keySeasonInfo?.type === 'MVP') {
+                                label += ' (MVP*)';
+                            }
+                             if (keySeasonInfo?.type === 'Champ') {
+                                label += ' (Champ🏆)';
+                            }
+                            return label;
+                        }
+                    }
+                },
+                 // Annotation plugin configuration (optional, for drawing lines/boxes)
+                // annotation: {
+                //     annotations: {
+                //         // Example: Add a vertical line for Jordan's first retirement (after 9th season, index 8)
+                //         line1: {
+                //             type: 'line',
+                //             xMin: 8.5, // Position between season 9 and 10
+                //             xMax: 8.5,
+                //             borderColor: 'rgba(0, 0, 0, 0.5)',
+                //             borderWidth: 1,
+                //             borderDash: [6, 6],
+                //             label: {
+                //                 content: "Jordan 1st Retirement",
+                //                 enabled: true,
+                //                 position: "start"
+                //             }
+                //         }
+                //     }
+                // }
+            },
+            interaction: { // 优化交互
+                 mode: 'nearest',
+                 axis: 'x',
+                 intersect: false
+             }
+        };
+
+        // 创建图表
+        trajectoryChart = new Chart(trajectoryChartCtx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: datasets
+            },
+            options: chartOptions
+            // plugins: [ChartAnnotation] // 如果使用 annotation plugin 需要注册
+        });
+
+    </script>
+
+</body>
+</html>

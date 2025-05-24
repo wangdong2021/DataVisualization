@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NBA 球员位置排名</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* 自定义滑块样式 */
+        input[type=range] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 8px;
+            background: #d1d5db; /* gray-300 */
+            outline: none;
+            opacity: 0.7;
+            transition: opacity .2s;
+            border-radius: 4px;
+        }
+        input[type=range]:hover {
+            opacity: 1;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #3b82f6; /* blue-500 */
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        input[type=range]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #3b82f6; /* blue-500 */
+            cursor: pointer;
+            border-radius: 50%;
+            border: none; /* 清除默认边框 */
+        }
+        /* 图表容器 */
+        #rankingChartContainer {
+            width: 95%;
+            max-width: 800px; /* 限制最大宽度 */
+            height: 500px; /* 固定高度 */
+            margin: 1rem auto; /* 上下边距并居中 */
+        }
+         /* 播放按钮样式 */
+        #playPauseBtn {
+            transition: background-color 0.3s ease;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4 md:p-8 flex flex-col items-center min-h-screen">
+
+    <div class="container mx-auto max-w-5xl bg-white p-6 rounded-lg shadow-md w-full">
+        <h1 class="text-2xl md:text-3xl font-bold text-center mb-6 text-gray-800">NBA 球员位置排名 (模拟)</h1>
+
+        <div class="mb-6 max-w-xs mx-auto">
+            <label for="positionSelect" class="block text-sm font-medium text-gray-700 mb-1 text-center">选择位置:</label>
+            <select id="positionSelect" class="w-full rounded-md border border-gray-300 py-2 px-3">
+                <option value="Center">中锋 (Center)</option>
+                <option value="Power Forward">大前锋 (Power Forward)</option>
+                <option value="Small Forward">小前锋 (Small Forward)</option>
+                <option value="Shooting Guard">得分后卫 (Shooting Guard)</option>
+                <option value="Point Guard">控球后卫 (Point Guard)</option>
+            </select>
+        </div>
+
+        <div class="mb-6 max-w-2xl mx-auto">
+            <label for="timeSlider" class="block text-sm font-medium text-gray-700 mb-2 text-center">选择时间点: <span id="timeLabel" class="font-semibold">2020-01</span></label>
+            <div class="flex items-center gap-4">
+                <input type="range" id="timeSlider" min="0" max="60" value="0" class="flex-grow">
+                 <button id="playPauseBtn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded inline-flex items-center">
+                    <i id="playIcon" class="fas fa-play mr-2"></i>
+                    <span id="playText">播放</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="rankingChartContainer">
+            <canvas id="rankingChart"></canvas>
+        </div>
+
+         <div id="messageBox" class="mt-4 text-center text-gray-600 font-medium">
+             提示：数据、排名公式和球员评分均为模拟，用于演示目的。
+         </div>
+    </div>
+
+    <script>
+        // --- 模拟数据 (更新: 使用真实球员名) ---
+        const positions = ["Center", "Power Forward", "Small Forward", "Shooting Guard", "Point Guard"];
+        const players = [
+            // Centers
+            { id: 1, name: '尼古拉·约基奇', position: 'Center', baseScore: 95, trend: 0.15, specialStat: 'rebounds', specialTrend: 0.5 },
+            { id: 2, name: '乔尔·恩比德', position: 'Center', baseScore: 93, trend: 0.18, specialStat: 'rebounds', specialTrend: 0.6 },
+            { id: 3, name: '安东尼·戴维斯', position: 'Center', baseScore: 90, trend: 0.1, specialStat: 'rebounds', specialTrend: 0.4 }, // 也打 PF
+            { id: 4, name: '鲁迪·戈贝尔', position: 'Center', baseScore: 85, trend: 0.05, specialStat: 'rebounds', specialTrend: 0.7 },
+            { id: 5, name: '巴姆·阿德巴约', position: 'Center', baseScore: 88, trend: 0.12, specialStat: 'rebounds', specialTrend: 0.45 },
+            { id: 6, name: '多曼塔斯·萨博尼斯', position: 'Center', baseScore: 87, trend: 0.14, specialStat: 'rebounds', specialTrend: 0.55 },
+            { id: 7, name: '卡尔-安东尼·唐斯', position: 'Center', baseScore: 86, trend: 0.08, specialStat: 'rebounds', specialTrend: 0.3 },
+            { id: 8, name: '尼古拉·武切维奇', position: 'Center', baseScore: 84, trend: 0.06, specialStat: 'rebounds', specialTrend: 0.35 },
+            { id: 9, name: '贾莱特·阿伦', position: 'Center', baseScore: 83, trend: 0.1, specialStat: 'rebounds', specialTrend: 0.6 },
+            { id: 10, name: '德安德烈·艾顿', position: 'Center', baseScore: 82, trend: 0.09, specialStat: 'rebounds', specialTrend: 0.5 },
+            { id: 11, name: '布鲁克·洛佩斯', position: 'Center', baseScore: 80, trend: 0.04, specialStat: 'rebounds', specialTrend: 0.2 },
+            { id: 12, name: '迈尔斯·特纳', position: 'Center', baseScore: 81, trend: 0.07, specialStat: 'rebounds', specialTrend: 0.4 },
+
+            // Power Forwards
+            { id: 13, name: '扬尼斯·阿德托昆博', position: 'Power Forward', baseScore: 96, trend: 0.12, specialStat: 'points', specialTrend: 0.6 },
+            { id: 14, name: '凯文·杜兰特', position: 'Power Forward', baseScore: 94, trend: 0.08, specialStat: 'points', specialTrend: 0.7 }, // 也打 SF
+            { id: 15, name: '锡安·威廉姆森', position: 'Power Forward', baseScore: 89, trend: 0.2, specialStat: 'points', specialTrend: 0.5 },
+            { id: 16, name: '帕斯卡尔·西亚卡姆', position: 'Power Forward', baseScore: 87, trend: 0.1, specialStat: 'points', specialTrend: 0.4 },
+            { id: 17, name: '朱利叶斯·兰德尔', position: 'Power Forward', baseScore: 86, trend: 0.15, specialStat: 'points', specialTrend: 0.55 },
+            { id: 18, name: '小贾伦·杰克逊', position: 'Power Forward', baseScore: 85, trend: 0.16, specialStat: 'points', specialTrend: 0.45 },
+            { id: 19, name: '保罗·班切罗', position: 'Power Forward', baseScore: 84, trend: 0.22, specialStat: 'points', specialTrend: 0.6 },
+            { id: 20, name: '埃文·莫布里', position: 'Power Forward', baseScore: 83, trend: 0.18, specialStat: 'points', specialTrend: 0.35 },
+            { id: 21, name: '约翰·科林斯', position: 'Power Forward', baseScore: 82, trend: 0.05, specialStat: 'points', specialTrend: 0.3 },
+            { id: 22, name: '阿隆·戈登', position: 'Power Forward', baseScore: 81, trend: 0.08, specialStat: 'points', specialTrend: 0.4 },
+            { id: 23, name: '劳里·马尔卡宁', position: 'Power Forward', baseScore: 88, trend: 0.17, specialStat: 'points', specialTrend: 0.65 },
+            { id: 24, name: '德雷蒙德·格林', position: 'Power Forward', baseScore: 80, trend: -0.02, specialStat: 'points', specialTrend: 0.1 }, // 防守贡献未在公式体现
+
+            // Small Forwards
+            { id: 25, name: '勒布朗·詹姆斯', position: 'Small Forward', baseScore: 93, trend: 0.02, specialStat: 'all-around', specialTrend: 0.5 },
+            { id: 26, name: '科怀·伦纳德', position: 'Small Forward', baseScore: 92, trend: 0.05, specialStat: 'all-around', specialTrend: 0.6 },
+            { id: 27, name: '杰森·塔图姆', position: 'Small Forward', baseScore: 94, trend: 0.15, specialStat: 'all-around', specialTrend: 0.7 },
+            { id: 28, name: '吉米·巴特勒', position: 'Small Forward', baseScore: 91, trend: 0.08, specialStat: 'all-around', specialTrend: 0.55 },
+            { id: 29, name: '保罗·乔治', position: 'Small Forward', baseScore: 90, trend: 0.06, specialStat: 'all-around', specialTrend: 0.6 },
+            { id: 30, name: '德玛尔·德罗赞', position: 'Small Forward', baseScore: 88, trend: 0.04, specialStat: 'all-around', specialTrend: 0.4 },
+            { id: 31, name: '布兰登·英格拉姆', position: 'Small Forward', baseScore: 87, trend: 0.1, specialStat: 'all-around', specialTrend: 0.45 },
+            { id: 32, name: '杰伦·布朗', position: 'Small Forward', baseScore: 89, trend: 0.12, specialStat: 'all-around', specialTrend: 0.5 },
+            { id: 33, name: '安德鲁·威金斯', position: 'Small Forward', baseScore: 85, trend: 0.03, specialStat: 'all-around', specialTrend: 0.3 },
+            { id: 34, name: '米卡尔·布里奇斯', position: 'Small Forward', baseScore: 86, trend: 0.11, specialStat: 'all-around', specialTrend: 0.35 },
+            { id: 35, name: '弗朗茨·瓦格纳', position: 'Small Forward', baseScore: 84, trend: 0.18, specialStat: 'all-around', specialTrend: 0.4 },
+            { id: 36, name: '克里斯·米德尔顿', position: 'Small Forward', baseScore: 87, trend: 0.01, specialStat: 'all-around', specialTrend: 0.3 },
+
+             // Shooting Guards
+            { id: 37, name: '德文·布克', position: 'Shooting Guard', baseScore: 92, trend: 0.1, specialStat: 'scoring', specialTrend: 0.7 },
+            { id: 38, name: '多诺万·米切尔', position: 'Shooting Guard', baseScore: 91, trend: 0.12, specialStat: 'scoring', specialTrend: 0.65 }, // 也打 PG
+            { id: 39, name: '安东尼·爱德华兹', position: 'Shooting Guard', baseScore: 90, trend: 0.2, specialStat: 'scoring', specialTrend: 0.8 },
+            { id: 40, name: '扎克·拉文', position: 'Shooting Guard', baseScore: 88, trend: 0.08, specialStat: 'scoring', specialTrend: 0.5 },
+            { id: 41, name: '布拉德利·比尔', position: 'Shooting Guard', baseScore: 87, trend: 0.05, specialStat: 'scoring', specialTrend: 0.6 },
+            { id: 42, name: '泰勒·希罗', position: 'Shooting Guard', baseScore: 85, trend: 0.15, specialStat: 'scoring', specialTrend: 0.55 },
+            { id: 43, name: '乔丹·普尔', position: 'Shooting Guard', baseScore: 84, trend: 0.1, specialStat: 'scoring', specialTrend: 0.45 },
+            { id: 44, name: '德斯蒙德·贝恩', position: 'Shooting Guard', baseScore: 86, trend: 0.18, specialStat: 'scoring', specialTrend: 0.6 },
+            { id: 45, name: 'CJ·麦科勒姆', position: 'Shooting Guard', baseScore: 86, trend: 0.03, specialStat: 'scoring', specialTrend: 0.4 }, // 也打 PG
+            { id: 46, name: '安芬尼·西蒙斯', position: 'Shooting Guard', baseScore: 83, trend: 0.16, specialStat: 'scoring', specialTrend: 0.5 },
+            { id: 47, name: '克莱·汤普森', position: 'Shooting Guard', baseScore: 85, trend: -0.05, specialStat: 'scoring', specialTrend: 0.7 }, // 考虑伤病恢复
+            { id: 48, name: '杰伦·格林', position: 'Shooting Guard', baseScore: 82, trend: 0.19, specialStat: 'scoring', specialTrend: 0.6 },
+
+            // Point Guards
+            { id: 49, name: '斯蒂芬·库里', position: 'Point Guard', baseScore: 96, trend: 0.05, specialStat: 'assists', specialTrend: 0.7 },
+            { id: 50, name: '卢卡·东契奇', position: 'Point Guard', baseScore: 97, trend: 0.18, specialStat: 'assists', specialTrend: 0.8 },
+            { id: 51, name: '达米安·利拉德', position: 'Point Guard', baseScore: 93, trend: 0.06, specialStat: 'assists', specialTrend: 0.6 },
+            { id: 52, name: '贾·莫兰特', position: 'Point Guard', baseScore: 92, trend: 0.15, specialStat: 'assists', specialTrend: 0.75 },
+            { id: 53, name: '特雷·杨', position: 'Point Guard', baseScore: 91, trend: 0.1, specialStat: 'assists', specialTrend: 0.85 },
+            { id: 54, name: '凯里·欧文', position: 'Point Guard', baseScore: 90, trend: 0.04, specialStat: 'assists', specialTrend: 0.5 }, // 也打 SG
+            { id: 55, name: '谢伊·吉尔杰斯-亚历山大', position: 'Point Guard', baseScore: 94, trend: 0.22, specialStat: 'assists', specialTrend: 0.65 }, // 也打 SG
+            { id: 56, name: '达龙·福克斯', position: 'Point Guard', baseScore: 89, trend: 0.16, specialStat: 'assists', specialTrend: 0.55 },
+            { id: 57, name: '詹姆斯·哈登', position: 'Point Guard', baseScore: 88, trend: -0.02, specialStat: 'assists', specialTrend: 0.9 }, // 也打 SG
+            { id: 58, name: '拉梅洛·鲍尔', position: 'Point Guard', baseScore: 87, trend: 0.14, specialStat: 'assists', specialTrend: 0.7 },
+            { id: 59, name: '达里厄斯·加兰', position: 'Point Guard', baseScore: 86, trend: 0.13, specialStat: 'assists', specialTrend: 0.6 },
+            { id: 60, name: '朱·霍勒迪', position: 'Point Guard', baseScore: 85, trend: 0.03, specialStat: 'assists', specialTrend: 0.4 }, // 防守贡献未体现
+        ];
+
+
+        // --- 模拟时间范围 ---
+        const startDate = new Date(2020, 0); // 2020年1月
+        const endDate = new Date(2025, 0);   // 2025年1月 (不含)
+        const totalMonths = (endDate.getFullYear() - startDate.getFullYear()) * 12 + (endDate.getMonth() - startDate.getMonth());
+
+        // --- DOM 元素 ---
+        const positionSelect = document.getElementById('positionSelect');
+        const timeSlider = document.getElementById('timeSlider');
+        const timeLabel = document.getElementById('timeLabel');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const playIcon = document.getElementById('playIcon');
+        const playText = document.getElementById('playText');
+        const rankingChartCtx = document.getElementById('rankingChart').getContext('2d');
+
+        // --- Chart.js 实例 ---
+        let rankingChart = null;
+
+        // --- 自动播放控制 ---
+        let intervalId = null;
+        let isPlaying = false;
+
+        // --- 排名计算公式 (示例) ---
+        // 更新: 增加一个模拟的“冠军月”来触发明显的分数变化
+        function calculateScore(player, monthsPassed, position) {
+            let score = player.baseScore + player.trend * monthsPassed;
+
+            // 根据位置应用不同的特殊统计加成 (模拟)
+            let specialStatValue = 0;
+            if (position === 'Center' && player.specialStat === 'rebounds') {
+                specialStatValue = 10 + player.specialTrend * monthsPassed;
+                score += specialStatValue * 1.5; // 篮板系数
+            } else if (position === 'Point Guard' && player.specialStat === 'assists') {
+                specialStatValue = 8 + player.specialTrend * monthsPassed;
+                score += specialStatValue * 1.2; // 助攻系数
+            } else if (player.specialStat === 'scoring' || player.specialStat === 'points') {
+                 specialStatValue = 20 + player.specialTrend * monthsPassed;
+                 score += specialStatValue * 1.0; // 得分系数
+            } else if (player.specialStat === 'all-around') {
+                 specialStatValue = 15 + player.specialTrend * monthsPassed;
+                 score += specialStatValue * 1.3; // 综合系数
+            }
+
+            // 模拟随机的冠军/MVP加成 (极度简化)
+            // 真实场景需要查询历史数据
+            // --- 更新：让特定球员在特定时间获得模拟冠军/MVP加成 ---
+            const currentSimYear = startDate.getFullYear() + Math.floor(monthsPassed / 12);
+            const currentSimMonth = (startDate.getMonth() + monthsPassed) % 12;
+
+            // 模拟约基奇在 2023 年 6 月 (对应 monthsPassed = 41) 夺冠
+            if (player.name === '尼古拉·约基奇' && monthsPassed >= 41 && monthsPassed < 53) { // 假设影响持续一年
+                 score += 50; // 冠军加成
+            }
+             // 模拟库里在 2022 年 6 月 (对应 monthsPassed = 29) 夺冠
+            if (player.name === '斯蒂芬·库里' && monthsPassed >= 29 && monthsPassed < 41) {
+                 score += 50;
+            }
+             // 模拟字母哥在 2021 年 7 月 (对应 monthsPassed = 18) 夺冠
+             if (player.name === '扬尼斯·阿德托昆博' && monthsPassed >= 18 && monthsPassed < 29) {
+                 score += 50;
+            }
+
+            // 模拟随机MVP (简化)
+            if (Math.random() < 0.01) score += 30; // 降低随机性，提高可预测性
+
+             // 模拟胜负场影响 (简化)
+             score += (Math.random() - 0.45) * 8; // 稍微增大波动
+
+            return Math.max(0, score); // 确保分数不为负
+        }
+
+        // --- 更新排名和图表 ---
+        function updateRanking() {
+            const selectedPosition = positionSelect.value;
+            const monthsPassed = parseInt(timeSlider.value);
+
+            // 计算当前时间
+            const currentDate = new Date(startDate);
+            currentDate.setMonth(startDate.getMonth() + monthsPassed);
+            const year = currentDate.getFullYear();
+            const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
+            timeLabel.textContent = `${year}-${month}`;
+
+            // 1. 筛选球员
+            const filteredPlayers = players.filter(p => p.position === selectedPosition);
+
+            // 2. 计算得分
+            const rankedPlayers = filteredPlayers.map(player => ({
+                ...player,
+                score: calculateScore(player, monthsPassed, selectedPosition)
+            }));
+
+            // 3. 排序并取 Top 10
+            rankedPlayers.sort((a, b) => b.score - a.score);
+            const top10Players = rankedPlayers.slice(0, 10);
+
+            // 4. 更新图表
+            const labels = top10Players.map(p => p.name);
+            const data = top10Players.map(p => p.score);
+
+            // 反转数据和标签，使得排名第一的在最上面
+            labels.reverse();
+            data.reverse();
+
+            const chartData = {
+                labels: labels,
+                datasets: [{
+                    label: `${selectedPosition} Top 10 排名得分 (${year}-${month})`,
+                    data: data,
+                    backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                    borderColor: 'rgb(59, 130, 246)',
+                    borderWidth: 1
+                }]
+            };
+
+            // --- 更新: 调整动画配置 ---
+            const chartOptions = {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                // -- 动画设置 --
+                animation: {
+                    duration: 800, // 动画持续时间 (毫秒)，增加时长使生长和排序变化更明显
+                    easing: 'easeInOutQuart' // 缓动效果，可选其他如 'linear', 'easeOutBounce' 等
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: '排名得分 (模拟值)'
+                        }
+                    },
+                    y: {
+                       ticks: {
+                           font: { size: 10 }
+                       }
+                    }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) { label += ': '; }
+                                if (context.parsed.x !== null) {
+                                    label += context.parsed.x.toFixed(2);
+                                }
+                                return label;
+                            }
+                        }
+                    }
+                }
+            };
+
+            if (rankingChart) {
+                // 更新数据和选项
+                rankingChart.data = chartData;
+                rankingChart.options = chartOptions;
+                rankingChart.update(); // Chart.js 会处理数据和顺序变化的动画
+            } else {
+                rankingChart = new Chart(rankingChartCtx, {
+                    type: 'bar',
+                    data: chartData,
+                    options: chartOptions
+                });
+            }
+             // 添加说明：Chart.js 的默认更新动画会平滑过渡数据变化（柱子生长/缩短）
+             // 以及数据顺序变化（柱子重新排列），但它不是精确的“垂直交换位置”动画。
+             // 实现那种特定效果通常需要更复杂的库（如 D3.js）或自定义插件。
+        }
+
+        // --- 时间轴和播放控制 ---
+        function play() {
+            if (isPlaying) return;
+            isPlaying = true;
+            playIcon.className = 'fas fa-pause mr-2';
+            playText.textContent = '暂停';
+            playPauseBtn.classList.replace('bg-blue-500', 'bg-red-500');
+            playPauseBtn.classList.replace('hover:bg-blue-600', 'hover:bg-red-600');
+
+            intervalId = setInterval(() => {
+                let currentValue = parseInt(timeSlider.value);
+                if (currentValue < totalMonths) {
+                    timeSlider.value = currentValue + 1;
+                    updateRanking();
+                } else {
+                    pause();
+                }
+            }, 850); // --- 更新: 稍微减慢播放速度 (850ms) 以便观察动画 ---
+        }
+
+        function pause() {
+            if (!isPlaying) return;
+            isPlaying = false;
+            clearInterval(intervalId);
+            intervalId = null;
+            playIcon.className = 'fas fa-play mr-2';
+            playText.textContent = '播放';
+            playPauseBtn.classList.replace('bg-red-500','bg-blue-500');
+            playPauseBtn.classList.replace('hover:bg-red-600', 'hover:bg-blue-600');
+        }
+
+        // --- 事件监听 ---
+        positionSelect.addEventListener('change', () => {
+            pause();
+            updateRanking();
+        });
+
+        timeSlider.addEventListener('input', () => {
+             pause();
+             updateRanking();
+        });
+
+         playPauseBtn.addEventListener('click', () => {
+            if (isPlaying) {
+                pause();
+            } else {
+                if (parseInt(timeSlider.value) >= totalMonths) {
+                     timeSlider.value = 0;
+                }
+                play();
+            }
+        });
+
+        // --- 初始化 ---
+        timeSlider.max = totalMonths;
+        updateRanking();
+
+    </script>
+
+</body>
+</html>

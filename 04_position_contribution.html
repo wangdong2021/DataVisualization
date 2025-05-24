@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>位置贡献随时间变化</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        #contributionChartContainer {
+            width: 95%;
+            max-width: 900px;
+            height: 500px;
+            margin: 1rem auto;
+        }
+        /* 自定义单选按钮样式，使其更明显 */
+        .stat-radio:checked + label {
+            background-color: #3b82f6; /* blue-500 */
+            color: white;
+            border-color: #2563eb; /* blue-600 */
+        }
+         .stat-radio + label {
+            cursor: pointer;
+            padding: 0.5rem 1rem;
+            border: 1px solid #d1d5db; /* gray-300 */
+            border-radius: 0.375rem; /* rounded-md */
+            transition: background-color 0.2s, color 0.2s;
+         }
+         .stat-radio {
+             display: none; /* 隐藏原始单选按钮 */
+         }
+    </style>
+</head>
+<body class="bg-gray-100 p-4 md:p-8 flex flex-col items-center min-h-screen">
+
+    <div class="container mx-auto max-w-5xl bg-white p-6 rounded-lg shadow-md w-full">
+        <h1 class="text-2xl md:text-3xl font-bold text-center mb-6 text-gray-800">位置贡献随时间变化 (模拟数据)</h1>
+
+        <div class="mb-6 flex justify-center space-x-4">
+            <input type="radio" id="statPoints" name="statistic" value="points" class="stat-radio" checked>
+            <label for="statPoints">得分贡献 (%)</label>
+
+            <input type="radio" id="statRebounds" name="statistic" value="rebounds" class="stat-radio">
+            <label for="statRebounds">篮板贡献 (%)</label>
+
+            <input type="radio" id="statAssists" name="statistic" value="assists" class="stat-radio">
+            <label for="statAssists">助攻贡献 (%)</label>
+        </div>
+
+        <div id="contributionChartContainer">
+            <canvas id="contributionChart"></canvas>
+        </div>
+
+         <div id="legendContainer" class="mt-4 text-center text-sm text-gray-600 flex flex-wrap justify-center gap-x-4 gap-y-1">
+             <span class="inline-flex items-center"><span class="inline-block w-3 h-3 bg-sky-500 mr-1 rounded-full"></span>控球后卫 (PG)</span>
+             <span class="inline-flex items-center"><span class="inline-block w-3 h-3 bg-red-500 mr-1 rounded-full"></span>得分后卫 (SG)</span>
+             <span class="inline-flex items-center"><span class="inline-block w-3 h-3 bg-yellow-500 mr-1 rounded-full"></span>小前锋 (SF)</span>
+             <span class="inline-flex items-center"><span class="inline-block w-3 h-3 bg-green-500 mr-1 rounded-full"></span>大前锋 (PF)</span>
+             <span class="inline-flex items-center"><span class="inline-block w-3 h-3 bg-purple-500 mr-1 rounded-full"></span>中锋 (C)</span>
+        </div>
+
+
+        <div id="messageBox" class="mt-4 text-center text-gray-500 font-medium text-xs">
+             提示：数据为高度简化和虚构，仅用于演示位置贡献比例随时间变化的趋势可视化。
+         </div>
+    </div>
+
+    <script>
+        // --- 模拟数据 ---
+        // 结构: season -> position -> { points: %, rebounds: %, assists: % }
+        // !! 重要: 每个赛季内，同一种统计项的所有位置百分比加起来必须等于 100 !!
+        const positionContributions = {
+            '2010-11': {
+                'PG': { points: 18, rebounds: 6, assists: 35 },
+                'SG': { points: 22, rebounds: 8, assists: 20 },
+                'SF': { points: 20, rebounds: 15, assists: 15 },
+                'PF': { points: 18, rebounds: 31, assists: 15 },
+                'C':  { points: 22, rebounds: 40, assists: 15 }
+            },
+            '2011-12': { // 稍微变化
+                'PG': { points: 19, rebounds: 6, assists: 36 },
+                'SG': { points: 21, rebounds: 8, assists: 20 },
+                'SF': { points: 21, rebounds: 15, assists: 15 },
+                'PF': { points: 18, rebounds: 30, assists: 15 },
+                'C':  { points: 21, rebounds: 41, assists: 14 }
+            },
+            '2012-13': {
+                'PG': { points: 20, rebounds: 7, assists: 37 },
+                'SG': { points: 21, rebounds: 8, assists: 19 },
+                'SF': { points: 21, rebounds: 16, assists: 15 },
+                'PF': { points: 19, rebounds: 29, assists: 15 },
+                'C':  { points: 19, rebounds: 40, assists: 14 }
+            },
+            '2013-14': { // PG/SG 得分增加, C 下降
+                'PG': { points: 21, rebounds: 7, assists: 38 },
+                'SG': { points: 22, rebounds: 8, assists: 18 },
+                'SF': { points: 21, rebounds: 16, assists: 15 },
+                'PF': { points: 19, rebounds: 30, assists: 15 },
+                'C':  { points: 17, rebounds: 39, assists: 14 }
+            },
+             '2014-15': {
+                'PG': { points: 22, rebounds: 7, assists: 39 },
+                'SG': { points: 22, rebounds: 9, assists: 17 },
+                'SF': { points: 21, rebounds: 17, assists: 15 },
+                'PF': { points: 19, rebounds: 29, assists: 15 },
+                'C':  { points: 16, rebounds: 38, assists: 14 }
+            },
+            '2015-16': { // "小球"趋势模拟: C 占比继续下降, 后卫/前锋上升
+                'PG': { points: 23, rebounds: 8, assists: 40 },
+                'SG': { points: 23, rebounds: 9, assists: 16 },
+                'SF': { points: 22, rebounds: 18, assists: 16 },
+                'PF': { points: 18, rebounds: 28, assists: 15 }, // PF篮板也可能受影响
+                'C':  { points: 14, rebounds: 37, assists: 13 }
+            },
+             '2016-17': {
+                'PG': { points: 24, rebounds: 8, assists: 41 },
+                'SG': { points: 23, rebounds: 9, assists: 15 },
+                'SF': { points: 22, rebounds: 18, assists: 16 },
+                'PF': { points: 18, rebounds: 28, assists: 15 },
+                'C':  { points: 13, rebounds: 37, assists: 13 }
+            },
+            '2017-18': {
+                'PG': { points: 25, rebounds: 8, assists: 42 },
+                'SG': { points: 24, rebounds: 9, assists: 14 },
+                'SF': { points: 22, rebounds: 19, assists: 16 },
+                'PF': { points: 17, rebounds: 27, assists: 15 },
+                'C':  { points: 12, rebounds: 37, assists: 13 }
+            },
+            '2018-19': { // 现代中锋功能性体现? 助攻略升
+                'PG': { points: 25, rebounds: 8, assists: 41 },
+                'SG': { points: 24, rebounds: 9, assists: 14 },
+                'SF': { points: 22, rebounds: 19, assists: 16 },
+                'PF': { points: 17, rebounds: 27, assists: 15 },
+                'C':  { points: 12, rebounds: 37, assists: 14 }
+            },
+             '2019-20': {
+                'PG': { points: 26, rebounds: 8, assists: 40 },
+                'SG': { points: 24, rebounds: 9, assists: 14 },
+                'SF': { points: 22, rebounds: 19, assists: 17 },
+                'PF': { points: 17, rebounds: 27, assists: 15 },
+                'C':  { points: 11, rebounds: 37, assists: 14 }
+            },
+             '2020-21': { // 模拟最新趋势
+                'PG': { points: 27, rebounds: 9, assists: 39 },
+                'SG': { points: 25, rebounds: 10, assists: 13 },
+                'SF': { points: 22, rebounds: 20, assists: 18 },
+                'PF': { points: 16, rebounds: 26, assists: 16 },
+                'C':  { points: 10, rebounds: 35, assists: 14 }
+            },
+        };
+
+        const positions = ['PG', 'SG', 'SF', 'PF', 'C'];
+        const positionColors = {
+            'PG': 'rgb(14, 165, 233)',  // sky-500
+            'SG': 'rgb(239, 68, 68)',   // red-500
+            'SF': 'rgb(234, 179, 8)',   // yellow-500
+            'PF': 'rgb(34, 197, 94)',  // green-500
+            'C':  'rgb(168, 85, 247)'   // purple-500
+        };
+        const seasons = Object.keys(positionContributions);
+
+        // --- DOM Elements ---
+        const contributionChartCtx = document.getElementById('contributionChart').getContext('2d');
+        const statisticRadios = document.querySelectorAll('input[name="statistic"]');
+
+        // --- Chart.js Instance ---
+        let contributionChart = null;
+
+        // --- Function to prepare datasets for Chart.js ---
+        function prepareDatasets(selectedStat) {
+            return positions.map(pos => {
+                const data = seasons.map(season => positionContributions[season][pos][selectedStat]);
+                return {
+                    label: pos,
+                    data: data,
+                    borderColor: positionColors[pos],
+                    backgroundColor: positionColors[pos],
+                    fill: true, // Needed for area chart
+                    tension: 0.1 // Slight curve
+                };
+            });
+        }
+
+        // --- Function to update or create the chart ---
+        function renderChart(selectedStat) {
+            const datasets = prepareDatasets(selectedStat);
+            const chartData = {
+                labels: seasons,
+                datasets: datasets
+            };
+
+            const chartOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false // Using custom HTML legend
+                    },
+                    tooltip: {
+                        mode: 'index', // Show tooltip for all datasets at that index
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) {
+                                    label += ': ';
+                                }
+                                if (context.parsed.y !== null) {
+                                    // Format as percentage
+                                    label += context.parsed.y.toFixed(1) + '%';
+                                }
+                                return label;
+                            }
+                        }
+                    },
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: '赛季'
+                        }
+                    },
+                    y: {
+                        stacked: true, // Enable stacking
+                        title: {
+                            display: true,
+                            text: '贡献比例 (%)'
+                        },
+                        min: 0,
+                        max: 100, // Y-axis goes from 0 to 100%
+                        ticks: {
+                            // Format Y-axis ticks as percentages
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        }
+                    }
+                },
+                interaction: { // Improve hover interaction
+                    mode: 'nearest',
+                    axis: 'x',
+                    intersect: false
+                }
+            };
+
+            if (contributionChart) {
+                // Update existing chart
+                contributionChart.data = chartData;
+                // Update chart title based on selection (optional)
+                // contributionChart.options.plugins.title.text = `各位置 ${selectedStat} 贡献比例变化`;
+                contributionChart.update();
+            } else {
+                // Create new chart
+                contributionChart = new Chart(contributionChartCtx, {
+                    type: 'line', // Use line chart with fill and stacked options for area chart effect
+                    data: chartData,
+                    options: chartOptions
+                });
+            }
+        }
+
+        // --- Event Listeners ---
+        statisticRadios.forEach(radio => {
+            radio.addEventListener('change', (event) => {
+                renderChart(event.target.value);
+            });
+        });
+
+        // --- Initial Render ---
+        renderChart('points'); // Initially render the chart for 'points'
+
+    </script>
+
+</body>
+</html>
