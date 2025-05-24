@@ -60,20 +60,6 @@
             </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div>
-                <label for="yearSelect" class="block text-sm font-medium text-gray-700 mb-1">选择年份:</label>
-                <select id="yearSelect" class="w-full" disabled>
-                    <option value="">请先选择两位球员</option>
-                    </select>
-            </div>
-            <div>
-                <label for="gameSelect" class="block text-sm font-medium text-gray-700 mb-1">选择交手比赛:</label>
-                <select id="gameSelect" class="w-full" disabled>
-                    <option value="">请先选择年份</option>
-                    </select>
-            </div>
-        </div>
 
         <div id="comparisonResult" class="mt-8 hidden">
             <h2 class="text-xl font-semibold text-center mb-4 text-gray-700">对位数据</h2>
@@ -108,36 +94,107 @@
 
     <script>
         // --- 模拟数据 ---
-        // 更新: 使用真实的图片链接 (注意: 这些链接可能不稳定)
-        const mockPlayers = [
-            { id: 1, name: '迈克尔·乔丹', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/Michael_Jordan_in_2014.jpg/440px-Michael_Jordan_in_2014.jpg' },
-            { id: 2, name: '科比·布莱恩特', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/Kobe_Bryant_2014.jpg/440px-Kobe_Bryant_2014.jpg' },
-            { id: 3, name: '勒布朗·詹姆斯', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/LeBron_James_Lakers.jpg/440px-LeBron_James_Lakers.jpg'},
-            { id: 4, name: '斯蒂芬·库里', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/Stephen_Curry_dribbling_2016_%28cropped%29.jpg/440px-Stephen_Curry_dribbling_2016_%28cropped%29.jpg' },
-            { id: 5, name: '凯文·杜兰特', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/Kevin_Durant_2018.jpg/440px-Kevin_Durant_2018.jpg' }
-        ];
+        let allPlayersData = []; // 存储所有解析后的球员数据
 
-        // 模拟比赛数据 (注意: player1Id 和 player2Id 应对应 mockPlayers 中的 id)
-        // 包含两位球员在该场比赛的模拟数据
-        const mockGames = [
-            // 乔丹 vs 科比
-            { id: 101, year: 1997, date: '1997-12-17', team1: '公牛', team2: '湖人', player1Id: 1, player2Id: 2, player1Stats: { '得分': 36, '篮板': 5, '助攻': 4, '抢断': 1, '盖帽': 0 }, player2Stats: { '得分': 33, '篮板': 3, '助攻': 2, '抢断': 0, '盖帽': 0 } },
-            { id: 102, year: 1998, date: '1998-02-01', team1: '湖人', team2: '公牛', player1Id: 1, player2Id: 2, player1Stats: { '得分': 23, '篮板': 6, '助攻': 8, '抢断': 2, '盖帽': 1 }, player2Stats: { '得分': 20, '篮板': 4, '助攻': 1, '抢断': 1, '盖帽': 0 } },
-             // 詹姆斯 vs 杜兰特
-            { id: 201, year: 2012, date: '2012-06-14', team1: '热火', team2: '雷霆', player1Id: 3, player2Id: 5, player1Stats: { '得分': 29, '篮板': 14, '助攻': 3, '抢断': 1, '盖帽': 0 }, player2Stats: { '得分': 32, '篮板': 6, '助攻': 3, '抢断': 1, '盖帽': 1 } },
-            { id: 202, year: 2017, date: '2017-06-01', team1: '骑士', team2: '勇士', player1Id: 3, player2Id: 5, player1Stats: { '得分': 28, '篮板': 15, '助攻': 8, '抢断': 0, '盖帽': 0 }, player2Stats: { '得分': 38, '篮板': 8, '助攻': 8, '抢断': 0, '盖帽': 0 } },
-             // 詹姆斯 vs 库里
-            { id: 301, year: 2015, date: '2015-06-04', team1: '骑士', team2: '勇士', player1Id: 3, player2Id: 4, player1Stats: { '得分': 44, '篮板': 8, '助攻': 6, '抢断': 2, '盖帽': 0 }, player2Stats: { '得分': 26, '篮板': 4, '助攻': 8, '抢断': 2, '盖帽': 0 } },
-            { id: 302, year: 2018, date: '2018-05-31', team1: '勇士', team2: '骑士', player1Id: 3, player2Id: 4, player1Stats: { '得分': 51, '篮板': 8, '助攻': 8, '抢断': 1, '盖帽': 1 }, player2Stats: { '得分': 29, '篮板': 6, '助攻': 9, '抢断': 1, '盖帽': 0 } },
-        ];
+        // --- CSV数据处理 ---
+        async function loadCSVData() {
+            try {
+                const response = await fetch('nba-players-stats/Seasons_Stats.csv');
+                const csvText = await response.text();
+                const rows = csvText.split('\n').slice(1);
+                
+                const playersMap = new Map();
+                let idCounter = 1;
+
+                rows.forEach(row => {
+                    const cols = row.split(',');
+                    if (cols.length < 45) return;
+
+                    // 解析基础字段
+                    const player = cols[2].trim();
+                    const games = parseFloat(cols[6]);
+                    if (games === 0 || isNaN(games)) return;
+
+                    // 解析百分比字段
+                    const stlPct = parseFloat(cols[16]);
+                    const blkPct = parseFloat(cols[17]);
+                    const trbPct = parseFloat(cols[14]);
+                    const astPct = parseFloat(cols[15]);
+                    const tsPct = parseFloat(cols[9]);
+                    const threePPct = parseFloat(cols[31]);
+                    const twoPPct = parseFloat(cols[34]);
+
+                    if (!playersMap.has(player)) {
+                        playersMap.set(player, { 
+                            id: idCounter++,
+                            status: {
+                                stlPct: [],
+                                blkPct: [],
+                                trbPct: [],
+                                astPct: [],
+                                tsPct: [],
+                                // threePPct: [],
+                                // twoPPct: []
+                            }
+                        });
+                    }
+
+                    // 收集有效数据
+                    const playerData = playersMap.get(player);
+                    if (!isNaN(stlPct)) playerData.status.stlPct.push(stlPct);
+                    if (!isNaN(blkPct)) playerData.status.blkPct.push(blkPct);
+                    if (!isNaN(trbPct)) playerData.status.trbPct.push(trbPct);
+                    if (!isNaN(astPct)) playerData.status.astPct.push(astPct);
+                    if (!isNaN(tsPct)) playerData.status.tsPct.push(tsPct);
+                    // if (!isNaN(threePPct)) playerData.status.threePPct.push(threePPct);
+                    // if (!isNaN(twoPPct)) playerData.status.twoPPct.push(twoPPct);
+                });
+
+                // 转换为数组并计算平均值
+                allPlayersData = Array.from(playersMap, ([name, data]) => {
+                    const status = {};
+                    // 计算各属性平均值
+                    for (const key in data.status) {
+                        const values = data.status[key];
+                        status[key] = values.length > 0 
+                            ? parseFloat((values.reduce((a, b) => a + b, 0) / values.length).toFixed(1))
+                            : 0;
+                    }
+                    return {
+                        id: data.id,
+                        name,
+                        status
+                    };
+                });
+                allPlayersData = allPlayersData.filter(player => player.status.tsPct > 0);
+                allPlayersData = allPlayersData.filter(player => player.status.stlPct > 0);
+                allPlayersData = allPlayersData.filter(player => player.status.blkPct > 0);
+                allPlayersData = allPlayersData.filter(player => player.status.trbPct > 0);
+                // allPlayersData = allPlayersData.filter(player => player.status.twoPPct > 0);
+                allPlayersData.forEach(player => {
+                    const status1 = {};
+                    status1['抢断'] = player.status.stlPct;
+                    status1['盖帽'] = player.status.blkPct;
+                    status1['篮板'] = player.status.trbPct;
+                    status1['助攻'] = player.status.astPct;
+                    status1['投篮'] = player.status.tsPct;
+                    
+                    player.status = status1;
+                });
+                console.log(allPlayersData);
+                
+            } catch (error) {
+                console.error('数据加载失败:', error);
+            }
+        }
+
+
 
         // --- DOM 元素引用 ---
         const player1Input = document.getElementById('player1');
         const player2Input = document.getElementById('player2');
         const player1List = document.getElementById('player1-list');
         const player2List = document.getElementById('player2-list');
-        const yearSelect = document.getElementById('yearSelect');
-        const gameSelect = document.getElementById('gameSelect');
         const comparisonResultDiv = document.getElementById('comparisonResult');
         const messageBox = document.getElementById('messageBox');
 
@@ -170,7 +227,7 @@
             // 清空现有选项，防止重复添加
             player1List.innerHTML = '';
             player2List.innerHTML = '';
-            mockPlayers.forEach(player => {
+            allPlayersData.forEach(player => {
                 const option1 = document.createElement('option');
                 option1.value = player.name;
                 option1.dataset.id = player.id; // 存储ID
@@ -192,128 +249,21 @@
              const option = Array.from(listElement.options).find(opt => opt.value === selectedName);
             if (option) {
                  // 根据option的dataset.id查找球员
-                return mockPlayers.find(p => p.id == option.dataset.id);
+                return allPlayersData.find(p => p.id == option.dataset.id);
             }
             return null; // 没有找到或未选择
         }
 
 
-        // 填充年份下拉列表
-        function populateYearSelect() {
-            hideMessage();
-            const player1 = findSelectedPlayer(player1Input, player1List);
-            const player2 = findSelectedPlayer(player2Input, player2List);
-
-            // 重置后续选择
-            yearSelect.innerHTML = '<option value="">请选择年份</option>';
-            yearSelect.disabled = true;
-            gameSelect.innerHTML = '<option value="">请先选择年份</option>';
-            gameSelect.disabled = true;
-            comparisonResultDiv.classList.add('hidden'); // 隐藏结果区域
-             // 重置图片为默认占位符
-            player1Img.src = 'https://placehold.co/80x80/e2e8f0/64748b?text=P1';
-            player1NameEl.textContent = '球员 1';
-            player2Img.src = 'https://placehold.co/80x80/e2e8f0/64748b?text=P2';
-            player2NameEl.textContent = '球员 2';
-
-
-            if (player1 && player2 && player1.id !== player2.id) {
-                const relevantGames = mockGames.filter(game =>
-                    (game.player1Id === player1.id && game.player2Id === player2.id) ||
-                    (game.player1Id === player2.id && game.player2Id === player1.id)
-                );
-
-                if (relevantGames.length === 0) {
-                     showMessage(`未找到 ${player1.name} 和 ${player2.name} 的交手记录。`);
-                     return;
-                }
-
-                const years = [...new Set(relevantGames.map(game => game.year))].sort((a, b) => b - a); // 获取不重复年份并降序
-
-                if (years.length > 0) {
-                    years.forEach(year => {
-                        const option = document.createElement('option');
-                        option.value = year;
-                        option.textContent = year;
-                        yearSelect.appendChild(option);
-                    });
-                    yearSelect.disabled = false;
-                } else {
-                     yearSelect.innerHTML = '<option value="">无可用年份</option>';
-                }
-
-            } else if (player1 && player2 && player1.id === player2.id) {
-                 showMessage('请选择两位不同的球员进行比较。');
-            } else {
-                 // 如果只选择了一个球员或未选择，也重置图片和名称
-                 if(!player1){
-                    player1Img.src = 'https://placehold.co/80x80/e2e8f0/64748b?text=P1';
-                    player1NameEl.textContent = '球员 1';
-                 } else {
-                    player1Img.src = player1.img;
-                    player1NameEl.textContent = player1.name;
-                 }
-                  if(!player2){
-                    player2Img.src = 'https://placehold.co/80x80/e2e8f0/64748b?text=P2';
-                    player2NameEl.textContent = '球员 2';
-                 } else {
-                    player2Img.src = player2.img;
-                    player2NameEl.textContent = player2.name;
-                 }
-                 yearSelect.innerHTML = '<option value="">请先选择两位球员</option>';
-            }
-        }
-
-        // 填充比赛下拉列表
-        function populateGameSelect() {
-             hideMessage();
-             const player1 = findSelectedPlayer(player1Input, player1List);
-             const player2 = findSelectedPlayer(player2Input, player2List);
-             const selectedYear = parseInt(yearSelect.value); // 确保是数字类型
-
-             // 重置比赛选择和结果
-             gameSelect.innerHTML = '<option value="">请选择比赛</option>';
-             gameSelect.disabled = true;
-             comparisonResultDiv.classList.add('hidden');
-
-             if (player1 && player2 && selectedYear) {
-                 const gamesInYear = mockGames.filter(game =>
-                     game.year === selectedYear &&
-                     ((game.player1Id === player1.id && game.player2Id === player2.id) ||
-                      (game.player1Id === player2.id && game.player2Id === player1.id))
-                 );
-
-                 if (gamesInYear.length > 0) {
-                     // 按日期排序
-                     gamesInYear.sort((a, b) => new Date(a.date) - new Date(b.date));
-                     gamesInYear.forEach(game => {
-                         const option = document.createElement('option');
-                         option.value = game.id;
-                         // 显示更详细的比赛信息
-                         option.textContent = `${game.date} - ${game.team1} vs ${game.team2}`;
-                         gameSelect.appendChild(option);
-                     });
-                     gameSelect.disabled = false;
-                 } else {
-                      gameSelect.innerHTML = '<option value="">该年份无交手记录</option>';
-                 }
-             } else {
-                 gameSelect.innerHTML = '<option value="">请先选择年份</option>';
-             }
-        }
 
         // 显示对比结果
         function displayComparison() {
             hideMessage();
             const player1 = findSelectedPlayer(player1Input, player1List);
             const player2 = findSelectedPlayer(player2Input, player2List);
-            const selectedGameId = parseInt(gameSelect.value);
 
-            if (!player1 || !player2 || !selectedGameId) {
+            if (!player1 || !player2) {
                 comparisonResultDiv.classList.add('hidden');
-                if(!selectedGameId && !gameSelect.disabled) { // 只有在可以选择比赛但未选时提示
-                     showMessage('请选择一场比赛以查看数据。');
-                }
                 // 即使没有选比赛，也要显示已选球员的信息
                  if(player1) {
                     player1Img.src = player1.img || 'https://placehold.co/80x80/e2e8f0/64748b?text=P1';
@@ -326,23 +276,9 @@
                 return;
             }
 
-            const selectedGame = mockGames.find(game => game.id === selectedGameId);
-
-            if (!selectedGame) {
-                 showMessage('未找到所选比赛的数据。');
-                 comparisonResultDiv.classList.add('hidden');
-                 return;
-            }
-
             // 确定哪个球员是 player1Stats，哪个是 player2Stats
-            let player1Data, player2Data;
-            if (selectedGame.player1Id === player1.id) {
-                player1Data = selectedGame.player1Stats;
-                player2Data = selectedGame.player2Stats;
-            } else {
-                player1Data = selectedGame.player2Stats; // 注意这里是反过来的
-                player2Data = selectedGame.player1Stats;
-            }
+            let player1Data = player1.status;
+            let player2Data = player2.status;
 
             // 更新球员信息 (确保使用 onerror 的 fallback)
             player1Img.src = player1.img || 'https://placehold.co/80x80/e2e8f0/64748b?text=P1';
@@ -523,16 +459,15 @@
 
 
         // --- 事件监听器 ---
-        player1Input.addEventListener('input', populateYearSelect); // 改为 input 事件以便实时更新头像
-        player2Input.addEventListener('input', populateYearSelect); // 改为 input 事件以便实时更新头像
-        player1Input.addEventListener('change', populateYearSelect); // 保留 change 以触发年份加载
-        player2Input.addEventListener('change', populateYearSelect); // 保留 change 以触发年份加载
-        yearSelect.addEventListener('change', populateGameSelect);
-        gameSelect.addEventListener('change', displayComparison);
+        player1Input.addEventListener('change', displayComparison);
+        player2Input.addEventListener('change', displayComparison);
 
         // --- 初始化 ---
-        populatePlayerLists(); // 页面加载时填充球员列表
-
+        // // --- 初始化加载 ---
+        window.addEventListener('DOMContentLoaded', async () => {
+            await loadCSVData();
+            populatePlayerLists(); // 页面加载时填充球员列表
+        });
     </script>
 
 </body>

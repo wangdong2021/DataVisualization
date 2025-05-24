@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        #playerSelect {
+            width: 300px;
+            height: 150px;
+            margin: 20px;
+            border: 1px solid #ccc;
+        }
+        option:checked {
+            background: #e0f0ff;
+        }
+        .control-group {
+            margin: 20px;
+        }
+        .line { fill: none; stroke-width: 2; }
+        .legend-item { margin: 5px; cursor: pointer; }
+        #controls { position: absolute; left: 650px; top: 20px; }
+    </style>
+</head>
+<body>
+    <div id="chart"></div>
+    <div id="legend"></div>
+    <div id="controls"></div>
+
+<script>
+d3.csv("nba-players-stats/Seasons_Stats.csv").then(data => {
+    // 1. 数据处理（新增横轴最小值处理）
+    const years = data.map(d => +d.Year);
+    const minYear = d3.min(years);
+    const maxYear = d3.max(years);
+
+    const mergedData = data.reduce((acc, curr) => {
+        const player = curr.Player;
+        const pts = +curr.PTS;
+        const year = +curr.Year;
+        
+        if (!acc[player]) {
+            acc[player] = { name: player, PTS: [pts], year: [year] };
+        } else {
+            acc[player].PTS.push(pts);
+            acc[player].year.push(year);
+        }
+        return acc;
+    }, {});
+
+    const playerList = Object.values(mergedData);
+
+    // 2. 可视化设置（更新横轴范围）
+    const margin = {top: 20, right: 30, bottom: 30, left: 40};
+    const width = 800 - margin.left - margin.right;
+    const height = 500 - margin.top - margin.bottom;
+
+    const svg = d3.select("#chart")
+        .append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    const select = d3.select("#playerSelect")
+        .on("change", function() {
+            const selected = Array.from(this.selectedOptions).map(o => o.value);
+            updateChart(selected);
+        });
+
+    // 填充选项并默认不选 (网页8)
+    select.selectAll("option")
+        .data(playerList)
+        .enter()
+        .append("option")
+        .attr("value", d => d.name)
+        .text(d => d.name)
+        .property("selected", false); // 默认不选中
+
+    function toggleAll(selectAll) {
+        d3.select("#playerSelect")
+            .selectAll("option")
+            .property("selected", selectAll);
+        updateChart(selectAll ? playerList.map(d => d.name) : []);
+    }
+    // 4. 更新比例尺设置（横轴最小值处理）
+    const xScale = d3.scaleLinear()
+        .domain([1950, maxYear]) // 关键修改点
+        .range([0, width]);
+
+    const yScale = d3.scaleLinear()
+        .domain([0, d3.max(playerList, d => d3.max(d.PTS))])
+        .range([height, 0]);
+
+    // 5. 颜色生成器（保持颜色一致性）
+    const colorScale = d3.scaleOrdinal()
+        .domain(playerList.map(d => d.name))
+        .range(d3.quantize(t => d3.interpolateSpectral(t * 0.8 + 0.1), playerList.length).reverse());
+
+    // 6. 折线生成器
+    const line = d3.line()
+        .x(d => xScale(d.year))
+        .y(d => yScale(d.pts))
+        .curve(d3.curveMonotoneX);
+
+    // 7. 动态更新函数（参考网页1事件处理）
+    function updateChart(selectedPlayers) {
+        // 移除旧折线
+        svg.selectAll(".line").remove();
+        
+        // 绘制新折线
+        playerList.forEach(player => {
+            if (selectedPlayers.includes(player.name)) {
+                const points = player.PTS.map((pts, i) => ({year: player.year[i], pts}));
+                
+                svg.append("path")
+                    .datum(points)
+                    .attr("class", "line")
+                    .attr("d", line)
+                    .attr("stroke", colorScale(player.name))
+                    .attr("opacity", 0.8);
+            }
+        });
+    }
+
+    // 8. 初始显示所有球员
+    updateChart(playerList.map(d => d.name));
+
+    // 9. 事件监听（参考网页1、4）
+    d3.selectAll("input[type='checkbox']")
+        .on("change", function() {
+            const selected = [];
+            d3.selectAll("input[type='checkbox']").each(function() {
+                if (this.checked) selected.push(this.id);
+            });
+            updateChart(selected);
+        });
+
+    // 10. 坐标轴绘制（保持原有实现）
+    svg.append("g")
+        .attr("transform", `translate(0,${height})`)
+        .call(d3.axisBottom(xScale).ticks(5).tickFormat(d3.format("d")));
+
+    svg.append("g")
+        .call(d3.axisLeft(yScale));
+});
+</script>
+</body>
+</html>

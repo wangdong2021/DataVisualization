@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NBA数据可视化平台</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+            /* 基础重置 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', system-ui;
+        }
+
+        /* 大标题设计 */
+        .header {
+            text-align: center;
+            padding: 2rem 0;
+            background: linear-gradient(45deg, #1d428a, #c8102e);
+            color: white;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            letter-spacing: 2px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        /* 按钮网格布局 */
+        .button-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            padding: 2rem 5%;
+            max-width: 1200px;
+            margin: 2rem auto;
+        }
+
+        /* 模块按钮设计 */
+        .module-btn {
+            display: flex;
+            align-items: center;
+            padding: 1.5rem;
+            background: linear-gradient(145deg, #f8f9fa, #e9ecef);
+            border-radius: 12px;
+            text-decoration: none;
+            color: #2c3e50;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+
+        .module-btn span {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-right: 1rem;
+            color: #1d428a;
+            min-width: 40px;
+        }
+
+        /* 交互效果 */
+        .module-btn:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+            background: linear-gradient(145deg, #ffffff, #f8f9fa);
+        }
+
+        .module-btn:active {
+            transform: translateY(-2px);
+        }
+
+        /* 响应式优化 */
+        @media (max-width: 768px) {
+            .button-grid {
+                grid-template-columns: 1fr;
+                padding: 1rem;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 主标题 -->
+    <header class="header">
+        <h1>NBA数据可视化项目</h1>
+    </header>
+
+    <!-- 按钮导航区 -->
+    <nav class="button-grid">
+        <a href="01_player_compare.html" class="module-btn">
+            <span>01</span>NBA 球员对位数据比较
+        </a>
+        <a href="02_topk.html" class="module-btn">
+            <span>02</span>NBA 球员位置排名
+        </a>
+        <a href="03_score_trace.html" class="module-btn">
+            <span>03</span>传奇球员职业生涯得分轨迹对比
+        </a>
+        <a href="04_position_contribution.html" class="module-btn">
+            <span>04</span>位置贡献随时间变化
+        </a>
+        <a href="05_score_trend.html" class="module-btn">
+            <span>05</span>NBA 历史得分与效率趋势
+        </a>
+        <a href="06_shot_distribution.html" class="module-btn">
+            <span>06</span>交互式球员投篮图
+        </a>
+        <a href="07_key_timing.html" class="module-btn">
+            <span>07</span>NBA 关键时刻表现仪表盘
+        </a>
+        <a href="08_rhythm_flow.html" class="module-btn">
+            <span>08</span>球队攻防节奏胜率流向图
+        </a>
+    </nav>
+</body>
+</html>
