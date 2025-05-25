@@ -35,11 +35,8 @@
     </style>
 </head>
 <body class="bg-gray-100 p-4 md:p-8 flex flex-col items-center min-h-screen">
-
     <div class="container mx-auto max-w-5xl bg-white p-6 rounded-lg shadow-md w-full">
-        <h1 class="text-2xl md:text-3xl font-bold text-center mb-6 text-gray-800">位置贡献随时间变化 (模拟数据)</h1>
-
-        <div class="mb-6 flex justify-center space-x-4">
+        <h1 class="text-2xl md:text-3xl font-bold text-center mb-6 text-gray-800">位置贡献随时间变化</h1> <div class="mb-6 flex justify-center space-x-4">
             <input type="radio" id="statPoints" name="statistic" value="points" class="stat-radio" checked>
             <label for="statPoints">得分贡献 (%)</label>
 
@@ -62,16 +59,16 @@
              <span class="inline-flex items-center"><span class="inline-block w-3 h-3 bg-purple-500 mr-1 rounded-full"></span>中锋 (C)</span>
         </div>
 
-
         <div id="messageBox" class="mt-4 text-center text-gray-500 font-medium text-xs">
-             提示：数据为高度简化和虚构，仅用于演示位置贡献比例随时间变化的趋势可视化。
-         </div>
+             提示：数据来源于 NBA API，显示各位置在不同赛季的得分、篮板、助攻贡献百分比。
+        </div>
     </div>
 
+    <script src="position_contributions_data.js"></script>
+
     <script>
-        // --- 模拟数据 ---
-        // 结构: season -> position -> { points: %, rebounds: %, assists: % }
-        // !! 重要: 每个赛季内，同一种统计项的所有位置百分比加起来必须等于 100 !!
+        // 步骤 2: 删除或注释掉原来的模拟数据
+        /*
         const positionContributions = {
             '2010-11': {
                 'PG': { points: 18, rebounds: 6, assists: 35 },
@@ -80,77 +77,11 @@
                 'PF': { points: 18, rebounds: 31, assists: 15 },
                 'C':  { points: 22, rebounds: 40, assists: 15 }
             },
-            '2011-12': { // 稍微变化
-                'PG': { points: 19, rebounds: 6, assists: 36 },
-                'SG': { points: 21, rebounds: 8, assists: 20 },
-                'SF': { points: 21, rebounds: 15, assists: 15 },
-                'PF': { points: 18, rebounds: 30, assists: 15 },
-                'C':  { points: 21, rebounds: 41, assists: 14 }
-            },
-            '2012-13': {
-                'PG': { points: 20, rebounds: 7, assists: 37 },
-                'SG': { points: 21, rebounds: 8, assists: 19 },
-                'SF': { points: 21, rebounds: 16, assists: 15 },
-                'PF': { points: 19, rebounds: 29, assists: 15 },
-                'C':  { points: 19, rebounds: 40, assists: 14 }
-            },
-            '2013-14': { // PG/SG 得分增加, C 下降
-                'PG': { points: 21, rebounds: 7, assists: 38 },
-                'SG': { points: 22, rebounds: 8, assists: 18 },
-                'SF': { points: 21, rebounds: 16, assists: 15 },
-                'PF': { points: 19, rebounds: 30, assists: 15 },
-                'C':  { points: 17, rebounds: 39, assists: 14 }
-            },
-             '2014-15': {
-                'PG': { points: 22, rebounds: 7, assists: 39 },
-                'SG': { points: 22, rebounds: 9, assists: 17 },
-                'SF': { points: 21, rebounds: 17, assists: 15 },
-                'PF': { points: 19, rebounds: 29, assists: 15 },
-                'C':  { points: 16, rebounds: 38, assists: 14 }
-            },
-            '2015-16': { // "小球"趋势模拟: C 占比继续下降, 后卫/前锋上升
-                'PG': { points: 23, rebounds: 8, assists: 40 },
-                'SG': { points: 23, rebounds: 9, assists: 16 },
-                'SF': { points: 22, rebounds: 18, assists: 16 },
-                'PF': { points: 18, rebounds: 28, assists: 15 }, // PF篮板也可能受影响
-                'C':  { points: 14, rebounds: 37, assists: 13 }
-            },
-             '2016-17': {
-                'PG': { points: 24, rebounds: 8, assists: 41 },
-                'SG': { points: 23, rebounds: 9, assists: 15 },
-                'SF': { points: 22, rebounds: 18, assists: 16 },
-                'PF': { points: 18, rebounds: 28, assists: 15 },
-                'C':  { points: 13, rebounds: 37, assists: 13 }
-            },
-            '2017-18': {
-                'PG': { points: 25, rebounds: 8, assists: 42 },
-                'SG': { points: 24, rebounds: 9, assists: 14 },
-                'SF': { points: 22, rebounds: 19, assists: 16 },
-                'PF': { points: 17, rebounds: 27, assists: 15 },
-                'C':  { points: 12, rebounds: 37, assists: 13 }
-            },
-            '2018-19': { // 现代中锋功能性体现? 助攻略升
-                'PG': { points: 25, rebounds: 8, assists: 41 },
-                'SG': { points: 24, rebounds: 9, assists: 14 },
-                'SF': { points: 22, rebounds: 19, assists: 16 },
-                'PF': { points: 17, rebounds: 27, assists: 15 },
-                'C':  { points: 12, rebounds: 37, assists: 14 }
-            },
-             '2019-20': {
-                'PG': { points: 26, rebounds: 8, assists: 40 },
-                'SG': { points: 24, rebounds: 9, assists: 14 },
-                'SF': { points: 22, rebounds: 19, assists: 17 },
-                'PF': { points: 17, rebounds: 27, assists: 15 },
-                'C':  { points: 11, rebounds: 37, assists: 14 }
-            },
-             '2020-21': { // 模拟最新趋势
-                'PG': { points: 27, rebounds: 9, assists: 39 },
-                'SG': { points: 25, rebounds: 10, assists: 13 },
-                'SF': { points: 22, rebounds: 20, assists: 18 },
-                'PF': { points: 16, rebounds: 26, assists: 16 },
-                'C':  { points: 10, rebounds: 35, assists: 14 }
-            },
+            // ... 其他模拟数据 ...
         };
+        */
+
+        // 现在，positionContributions 变量会从 position_contributions_data.js 文件中加载
 
         const positions = ['PG', 'SG', 'SF', 'PF', 'C'];
         const positionColors = {
@@ -160,7 +91,18 @@
             'PF': 'rgb(34, 197, 94)',  // green-500
             'C':  'rgb(168, 85, 247)'   // purple-500
         };
-        const seasons = Object.keys(positionContributions);
+        
+        // 重要: seasons 变量现在会根据加载的数据动态生成
+        // 我们需要确保 positionContributions 已经加载完毕
+        let seasons = [];
+        if (typeof positionContributions !== 'undefined' && Object.keys(positionContributions).length > 0) {
+            seasons = Object.keys(positionContributions);
+        } else {
+            console.error("错误：positionContributions 数据未加载或为空。请检查 position_contributions_data.js 文件是否存在且包含有效数据。");
+            // 可以选择显示一个错误信息给用户
+            document.getElementById('messageBox').textContent = '错误：无法加载图表数据。';
+        }
+
 
         // --- DOM Elements ---
         const contributionChartCtx = document.getElementById('contributionChart').getContext('2d');
@@ -171,21 +113,40 @@
 
         // --- Function to prepare datasets for Chart.js ---
         function prepareDatasets(selectedStat) {
+            if (seasons.length === 0) return []; // 如果没有赛季数据，返回空数组
+
             return positions.map(pos => {
-                const data = seasons.map(season => positionContributions[season][pos][selectedStat]);
+                const data = seasons.map(season => {
+                    // 安全地访问数据，如果某个赛季或位置或统计数据缺失，则默认为0
+                    return (positionContributions[season] && positionContributions[season][pos] && positionContributions[season][pos][selectedStat]) || 0;
+                });
                 return {
                     label: pos,
                     data: data,
                     borderColor: positionColors[pos],
-                    backgroundColor: positionColors[pos],
-                    fill: true, // Needed for area chart
-                    tension: 0.1 // Slight curve
+                    backgroundColor: positionColors[pos], // 用于填充颜色
+                    fill: true, // 设为 true 以创建面积图效果
+                    tension: 0.1
                 };
             });
         }
 
         // --- Function to update or create the chart ---
         function renderChart(selectedStat) {
+            if (seasons.length === 0) { // 如果没有赛季数据，则不渲染图表
+                console.warn("没有赛季数据可供渲染。");
+                 if(contributionChart) {
+                    contributionChart.destroy(); // 如果图表已存在，销毁它
+                    contributionChart = null;
+                }
+                contributionChartCtx.clearRect(0, 0, contributionChartCtx.canvas.width, contributionChartCtx.canvas.height); // 清空画布
+                contributionChartCtx.font = "16px Arial";
+                contributionChartCtx.fillStyle = "gray";
+                contributionChartCtx.textAlign = "center";
+                contributionChartCtx.fillText("无数据显示", contributionChartCtx.canvas.width / 2, contributionChartCtx.canvas.height / 2);
+                return;
+            }
+
             const datasets = prepareDatasets(selectedStat);
             const chartData = {
                 labels: seasons,
@@ -197,10 +158,10 @@
                 maintainAspectRatio: false,
                 plugins: {
                     legend: {
-                        display: false // Using custom HTML legend
+                        display: false
                     },
                     tooltip: {
-                        mode: 'index', // Show tooltip for all datasets at that index
+                        mode: 'index',
                         intersect: false,
                         callbacks: {
                             label: function(context) {
@@ -209,7 +170,6 @@
                                     label += ': ';
                                 }
                                 if (context.parsed.y !== null) {
-                                    // Format as percentage
                                     label += context.parsed.y.toFixed(1) + '%';
                                 }
                                 return label;
@@ -225,22 +185,21 @@
                         }
                     },
                     y: {
-                        stacked: true, // Enable stacking
+                        stacked: true,
                         title: {
                             display: true,
                             text: '贡献比例 (%)'
                         },
                         min: 0,
-                        max: 100, // Y-axis goes from 0 to 100%
+                        // max: 100, // 移除 max: 100, 让 Chart.js 自动计算Y轴最大值，以适应数据可能超过100的情况（如果数据处理有误）或确保所有堆叠数据都能正确显示
                         ticks: {
-                            // Format Y-axis ticks as percentages
                             callback: function(value) {
                                 return value + '%';
                             }
                         }
                     }
                 },
-                interaction: { // Improve hover interaction
+                interaction: {
                     mode: 'nearest',
                     axis: 'x',
                     intersect: false
@@ -248,15 +207,12 @@
             };
 
             if (contributionChart) {
-                // Update existing chart
                 contributionChart.data = chartData;
-                // Update chart title based on selection (optional)
-                // contributionChart.options.plugins.title.text = `各位置 ${selectedStat} 贡献比例变化`;
+                contributionChart.options.scales.y.max = undefined; // 确保更新时Y轴max能重新计算
                 contributionChart.update();
             } else {
-                // Create new chart
                 contributionChart = new Chart(contributionChartCtx, {
-                    type: 'line', // Use line chart with fill and stacked options for area chart effect
+                    type: 'line',
                     data: chartData,
                     options: chartOptions
                 });
@@ -271,7 +227,16 @@
         });
 
         // --- Initial Render ---
-        renderChart('points'); // Initially render the chart for 'points'
+        // 确保在 DOM 完全加载并且 positionContributions 数据可用之后再渲染
+        if (seasons.length > 0) {
+            renderChart('points'); // Initially render the chart for 'points'
+        } else if (typeof positionContributions !== 'undefined' && Object.keys(positionContributions).length === 0) {
+             // 如果 positionContributions 已定义但为空对象 (例如，Python脚本运行了但没有获取到任何赛季数据)
+            console.warn("positionContributions 数据已加载但为空，没有赛季数据可供渲染。");
+            document.getElementById('messageBox').textContent = '没有可供显示的赛季数据。';
+            renderChart('points'); // 尝试渲染一个空图表
+        }
+        // 如果 positionContributions 未定义，错误已在上面 seasons 初始化时处理
 
     </script>
 

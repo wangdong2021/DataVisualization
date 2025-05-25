@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/d3-sankey@0.12.3/dist/d3-sankey.min.js"></script>
+    <script src="flow.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -62,9 +63,7 @@
 <body class="p-4 md:p-8">
 
     <div class="container mx-auto max-w-4xl">
-        <h1 class="text-2xl md:text-3xl font-bold text-center mb-6 text-gray-800">球队攻防节奏胜率流向图 (模拟)</h1>
-
-        <div class="mb-6 p-4 bg-white rounded-lg shadow-md flex flex-wrap justify-center gap-4">
+        <h1 class="text-2xl md:text-3xl font-bold text-center mb-6 text-gray-800">球队攻防节奏胜率流向图 (真实数据)</h1> <div class="mb-6 p-4 bg-white rounded-lg shadow-md flex flex-wrap justify-center gap-4">
             <div>
                 <label for="teamSelect" class="block text-sm font-medium text-gray-700 mb-1">选择球队:</label>
                 <select id="teamSelect" class="rounded-md border border-gray-300 py-2 px-3">
@@ -84,48 +83,24 @@
          <div id="sankeyTooltip"></div>
 
         <div id="messageBox" class="mt-4 text-center text-gray-500 font-medium text-xs">
-             提示：节点和流量大小均为模拟数据，用于演示桑基图可视化概念。
+             提示：节点数据为真实抓取数据，流量大小为预设模拟值。
          </div>
 
     </div>
 
     <script>
         // --- 模拟数据 ---
-        const teamSeasonData = {
-            "金州勇士": {
-                "2022-23": {
-                    stats: { pace: 101.5, off_rating: 116.0, def_rating: 113.4, win_pct: 53.7 },
-                    // 模拟流量: 0:Pace, 1:Offense, 2:Defense, 3:Win% (使用索引)
-                    flows: [ { source: 0, target: 3, value: 15 }, { source: 1, target: 3, value: 60 }, { source: 2, target: 3, value: 25 } ]
-                },
-                "2015-16": {
-                    stats: { pace: 101.7, off_rating: 115.9, def_rating: 103.8, win_pct: 89.0 },
-                    flows: [ { source: 0, target: 3, value: 20 }, { source: 1, target: 3, value: 70 }, { source: 2, target: 3, value: 50 } ]
-                }
-            },
-            "洛杉矶湖人": {
-                "2022-23": {
-                    stats: { pace: 101.8, off_rating: 114.5, def_rating: 113.0, win_pct: 52.4 },
-                    flows: [ { source: 0, target: 3, value: 18 }, { source: 1, target: 3, value: 55 }, { source: 2, target: 3, value: 35 } ]
-                },
-                "2019-20": {
-                    stats: { pace: 100.9, off_rating: 112.0, def_rating: 106.1, win_pct: 72.2 },
-                    flows: [ { source: 0, target: 3, value: 10 }, { source: 1, target: 3, value: 45 }, { source: 2, target: 3, value: 65 } ]
-                }
-            },
-             "丹佛掘金": {
-                "2022-23": {
-                    stats: { pace: 98.8, off_rating: 117.6, def_rating: 112.5, win_pct: 64.6 },
-                    flows: [ { source: 0, target: 3, value: 10 }, { source: 1, target: 3, value: 75 }, { source: 2, target: 3, value: 40 } ]
-                },
-                "2021-22": {
-                    stats: { pace: 99.3, off_rating: 115.0, def_rating: 112.4, win_pct: 58.5 },
-                    flows: [ { source: 0, target: 3, value: 12 }, { source: 1, target: 3, value: 68 }, { source: 2, target: 3, value: 30 } ]
-                }
-            }
-        };
+        // const teamSeasonData = { ... }; // 这部分已经被删除，数据将从 flow.js 加载
 
-        const teams = Object.keys(teamSeasonData);
+        // 确保 teamSeasonData 变量在 flow.js 中定义，并且此脚本能访问到它
+        if (typeof teamSeasonData === 'undefined') {
+            console.error("错误：teamSeasonData 未定义。请确保 flow.js 已正确加载并在主脚本之前。");
+            // 可以在页面上显示错误信息
+            document.getElementById("messageBox").innerHTML = '<span style="color: red;">错误：无法加载球队数据 (teamSeasonData is undefined)。请检查 flow.js 文件是否存在且已正确引入。</span>';
+        }
+
+
+        const teams = Object.keys(teamSeasonData || {}); // 添加 || {} 以防止 teamSeasonData 未定义时出错
         const seasonsByTeam = {};
         teams.forEach(team => {
             seasonsByTeam[team] = Object.keys(teamSeasonData[team]);
@@ -146,6 +121,12 @@
 
         // --- Populate Selects ---
         function populateTeamSelect() {
+            if (!teams.length && typeof teamSeasonData !== 'undefined') { // 检查 teams 是否为空，但 teamSeasonData 已加载
+                 document.getElementById("messageBox").innerHTML = '<span style="color: orange;">提示：球队数据已加载，但似乎为空。请检查 flow.js 中的数据结构。</span>';
+            } else if (!teams.length) { // 如果 teams 仍然为空 (teamSeasonData 也未定义)
+                return; // 如果没有数据，则不填充下拉框
+            }
+
             teams.forEach(team => {
                 teamSelect.append("option").attr("value", team).text(team);
             });
@@ -154,14 +135,26 @@
 
         function updateSeasonSelect() {
             const selectedTeam = teamSelect.property("value");
-            const availableSeasons = seasonsByTeam[selectedTeam];
+            // 确保 seasonsByTeam[selectedTeam] 存在
+            const availableSeasons = seasonsByTeam[selectedTeam] || [];
 
             seasonSelect.selectAll("option").remove(); // Clear existing options
+
+            if (!availableSeasons.length && selectedTeam) {
+                 console.warn(`没有找到球队 "${selectedTeam}" 的赛季数据。`);
+                 document.getElementById("messageBox").innerHTML = `<span style="color: orange;">提示：没有找到球队 "${selectedTeam}" 的赛季数据。</span>`;
+                 drawSankey(); // 尝试绘制，可能会显示无数据
+                 return;
+            }
+
 
             availableSeasons.forEach(season => {
                 seasonSelect.append("option").attr("value", season).text(season);
             });
-            seasonSelect.property("value", availableSeasons[0]);
+            // 确保在有可用赛季时才设置属性
+            if (availableSeasons.length > 0) {
+                seasonSelect.property("value", availableSeasons[0]);
+            }
         }
 
 
@@ -169,81 +162,90 @@
         function drawSankey() {
             // --- Clear previous SVG contents ---
             svg.selectAll("*").remove(); // Clear SVG at the beginning
+            container.selectAll("p.error-message").remove(); // 清除之前的错误信息
+
+            // 检查 teamSeasonData 是否已成功加载
+            if (typeof teamSeasonData === 'undefined' || Object.keys(teamSeasonData).length === 0) {
+                console.error("无法绘制图表：teamSeasonData 未定义或为空。");
+                container.append("p").attr("class", "text-center text-red-500 error-message").text("数据未加载，无法绘制图表。");
+                return;
+            }
+
 
             const selectedTeam = teamSelect.property("value");
             const selectedSeason = seasonSelect.property("value");
+
+            // 增加对 selectedTeam 和 selectedSeason 是否存在的检查
+            if (!selectedTeam || !selectedSeason) {
+                console.warn("未选择球队或赛季，无法绘制图表。");
+                // 可以选择显示一个提示信息，或者不执行任何操作
+                 container.append("p").attr("class", "text-center text-gray-500 error-message").text("请选择球队和赛季以查看图表。");
+                return;
+            }
+
+
             const data = teamSeasonData[selectedTeam]?.[selectedSeason];
 
             if (!data) {
                 console.error("No data found for selected team and season:", selectedTeam, selectedSeason);
-                // Optionally display a message in the container
-                container.append("p").attr("class", "text-center text-red-500").text("无法加载所选数据");
+                container.append("p").attr("class", "text-center text-red-500 error-message").text(`无法加载 ${selectedTeam} (${selectedSeason}) 的数据。`);
                 return;
             }
-             // Clear any previous error messages
-             container.selectAll("p").remove();
+             // Clear any previous error messages (if any were not caught by class)
+             // container.selectAll("p").remove(); // 这个可能会移除掉 messageBox 的内容，所以用上面的 class 选择器
 
 
             try { // Add try...catch for better error handling during Sankey calculation/drawing
                 // --- Prepare data for D3 Sankey ---
                 // Define nodes with consistent names that will be used as IDs
                 const nodeDefinitions = [
-                    { id: "Pace", name: `节奏: ${data.stats.pace.toFixed(1)}`, type: 'stat' },
-                    { id: "Offense", name: `进攻效率: ${data.stats.off_rating.toFixed(1)}`, type: 'stat' },
-                    { id: "Defense", name: `防守效率: ${data.stats.def_rating.toFixed(1)}`, type: 'stat' },
-                    { id: "Win%", name: `胜率: ${data.stats.win_pct.toFixed(1)}%`, type: 'result' }
+                    { id: "Pace", name: `节奏: ${data.stats.pace !== "N/A" ? data.stats.pace.toFixed(1) : "N/A"}`, type: 'stat' },
+                    { id: "Offense", name: `进攻效率: ${data.stats.off_rating !== "N/A" ? data.stats.off_rating.toFixed(1) : "N/A"}`, type: 'stat' },
+                    { id: "Defense", name: `防守效率: ${data.stats.def_rating !== "N/A" ? data.stats.def_rating.toFixed(1) : "N/A"}`, type: 'stat' },
+                    { id: "Win%", name: `胜率: ${data.stats.win_pct !== "N/A" ? data.stats.win_pct.toFixed(1) : "N/A"}%`, type: 'result' }
                 ];
 
-                // **修正**: Map source/target indices from data.flows to node IDs (names)
                 const links = data.flows.map(link => {
-                    // Ensure source and target indices are valid
                     if (link.source < 0 || link.source >= nodeDefinitions.length ||
                         link.target < 0 || link.target >= nodeDefinitions.length) {
                         console.error("Invalid link source/target index:", link);
-                        return null; // Skip invalid links
+                        return null;
                     }
                     return {
-                        source: nodeDefinitions[link.source].id, // Use node ID (e.g., "Pace")
-                        target: nodeDefinitions[link.target].id, // Use node ID (e.g., "Win%")
+                        source: nodeDefinitions[link.source].id,
+                        target: nodeDefinitions[link.target].id,
                         value: link.value
                     };
-                }).filter(link => link !== null); // Remove any null links caused by errors
+                }).filter(link => link !== null);
 
-                // Use only the node definitions for the graph nodes
                 const nodes = nodeDefinitions;
 
-                // --- Get container dimensions ---
                 const containerRect = container.node().getBoundingClientRect();
                 const width = containerRect.width;
                 const height = containerRect.height;
 
-                 // Check for valid dimensions
                  if (width <= 0 || height <= 0) {
                     console.error("Invalid container dimensions:", width, height);
-                    container.append("p").attr("class", "text-center text-red-500").text("图表容器尺寸无效");
+                    container.append("p").attr("class", "text-center text-red-500 error-message").text("图表容器尺寸无效。");
                     return;
                  }
 
-                const margin = { top: 20, right: 150, bottom: 20, left: 150 }; // Increased margins for potentially longer labels
+                const margin = { top: 20, right: 150, bottom: 20, left: 150 };
 
-                // --- Configure Sankey Layout ---
                 sankey = d3.sankey()
-                    .nodeId(d => d.id) // Use the defined 'id' field
+                    .nodeId(d => d.id)
                     .nodeWidth(15)
-                    .nodePadding(30) // Increased padding
-                    .nodeAlign(d3.sankeyJustify) // Align nodes justify
+                    .nodePadding(30)
+                    .nodeAlign(d3.sankeyJustify)
                     .extent([[margin.left, margin.top], [width - margin.right, height - margin.bottom]]);
 
-                // --- Compute Sankey Layout ---
                 const { nodes: graphNodes, links: graphLinks } = sankey({
-                    // Pass copies to avoid modifying original data structure if sankey mutates it
                     nodes: nodes.map(d => ({...d})),
                     links: links.map(d => ({...d}))
                 });
 
-                const g = svg.append("g"); // Create a group
+                const g = svg.append("g");
 
-                // --- Draw Links ---
                 const link = g.append("g")
                     .attr("fill", "none")
                     .attr("stroke-opacity", 0.4)
@@ -254,16 +256,14 @@
 
                 link.append("path")
                     .attr("d", d3.sankeyLinkHorizontal())
-                    .attr("stroke", d => color(d.source.id)) // Color link based on source node ID
+                    .attr("stroke", d => color(d.source.id))
                     .attr("stroke-width", d => Math.max(1, d.width))
                      .on("mouseover", (event, d) => {
                         d3.select(event.currentTarget).attr("stroke-opacity", 0.7);
                         tooltip.transition().duration(200).style("opacity", .9);
                         tooltip.html(`
-                            流向: ${d.source.id} -> ${d.target.id}<br>
-                            模拟关联强度: ${format(d.value)}
+                            流向: ${d.source.name.split(':')[0]} -> ${d.target.name.split(':')[0]}<br> 模拟关联强度: ${format(d.value)}
                         `)
-                        // Position tooltip relative to the container
                         const [mouseX, mouseY] = d3.pointer(event, container.node());
                         tooltip
                            .style("left", (mouseX + 15) + "px")
@@ -279,7 +279,6 @@
                    .text(d => `${d.source.name} -> ${d.target.name}\n模拟关联强度: ${format(d.value)}`);
 
 
-                // --- Draw Nodes ---
                 const node = g.append("g")
                      .attr("class", "sankey-nodes")
                      .selectAll("g")
@@ -289,12 +288,12 @@
                      .attr("transform", d => `translate(${d.x0},${d.y0})`);
 
                 node.append("rect")
-                    .attr("height", d => Math.max(1, d.y1 - d.y0)) // Ensure height is at least 1
+                    .attr("height", d => Math.max(1, d.y1 - d.y0))
                     .attr("width", d => d.x1 - d.x0)
-                    .attr("fill", d => color(d.id)) // Color node based on ID
+                    .attr("fill", d => color(d.id))
                      .on("mouseover", (event, d) => {
                         tooltip.transition().duration(200).style("opacity", .9);
-                        tooltip.html(`${d.name}`) // Show full node name/value
+                        tooltip.html(`${d.name}`)
                         const [mouseX, mouseY] = d3.pointer(event, container.node());
                         tooltip
                            .style("left", (mouseX + 15) + "px")
@@ -307,20 +306,18 @@
                  node.append("title")
                    .text(d => `${d.name}`);
 
-                // --- Add Node Labels ---
                 node.append("text")
                     .attr("x", d => (d.x0 < width / 2) ? (d.x1 - d.x0 + 6) : -6)
                     .attr("y", d => (d.y1 - d.y0) / 2)
                     .attr("dy", "0.35em")
                     .attr("text-anchor", d => (d.x0 < width / 2) ? "start" : "end")
-                    .text(d => d.name) // Show full name with value
-                     .style("font-size", "11px"); // Adjust font size if needed
+                    .text(d => d.name)
+                     .style("font-size", "11px");
 
 
             } catch (error) {
                  console.error("Error drawing Sankey chart:", error);
-                 // Display error message in the container
-                 container.append("p").attr("class", "text-center text-red-500").text("绘制图表时出错，请检查数据或控制台。");
+                 container.append("p").attr("class", "text-center text-red-500 error-message").text("绘制图表时出错，请检查数据或控制台。");
             }
         }
 
@@ -332,8 +329,17 @@
         seasonSelect.on("change", drawSankey);
 
         // --- Initialization ---
-        populateTeamSelect();
-        drawSankey(); // Initial draw
+        // 确保在DOM加载完成后并且 teamSeasonData 可用时执行
+        // 使用 window.onload 或者 DOMContentLoaded 来确保DOM已准备好
+        window.onload = function() {
+            if (typeof teamSeasonData !== 'undefined' && Object.keys(teamSeasonData).length > 0) {
+                populateTeamSelect(); // 这会触发 updateSeasonSelect 和 drawSankey
+                // drawSankey(); // populateTeamSelect 会在其内部调用 updateSeasonSelect, 后者可能会调用 drawSankey
+            } else if (typeof teamSeasonData !== 'undefined') { // 数据已加载但为空
+                 document.getElementById("messageBox").innerHTML = '<span style="color: orange;">提示：球队数据已加载，但似乎为空。无法初始化图表。</span>';
+            }
+            // 如果 teamSeasonData 未定义，错误信息已在前面设置
+        };
 
     </script>
 
